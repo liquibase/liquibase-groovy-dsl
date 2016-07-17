@@ -17,6 +17,7 @@
 package org.liquibase.groovy.delegate
 
 import liquibase.exception.ChangeLogParseException
+import liquibase.precondition.PreconditionLogic
 import liquibase.precondition.core.AndPrecondition
 import liquibase.precondition.core.OrPrecondition
 import liquibase.precondition.core.SqlPrecondition
@@ -70,7 +71,7 @@ class PreconditionDelegate {
 	 * @param closure the SQL for the precondition
 	 * @return the newly created precondition.
 	 */
-	def sqlCheck(Map params = [:], Closure closure) {
+	def sqlCheck(Map params = [:], Closure<String> closure) {
 		def precondition = new SqlPrecondition()
 		params.each { key, value ->
 			try {
@@ -98,7 +99,7 @@ class PreconditionDelegate {
 	 * @param closure the closure with nested key/value pairs for the custom
 	 *        precondition.
 	 */
-	def customPrecondition(Map params = [:], Closure closure) {
+	def customPrecondition(Map params = [:], @DelegatesTo(KeyValueDelegate) Closure closure) {
 		def delegate = new KeyValueDelegate(changeSetId: changeSetId)
 		closure.delegate = delegate
 		closure.resolveStrategy = Closure.DELEGATE_FIRST
@@ -121,18 +122,18 @@ class PreconditionDelegate {
 	}
 
 
-	def and(Closure closure) {
+	def and(@DelegatesTo(PreconditionDelegate) Closure closure) {
 		def precondition = nestedPrecondition(AndPrecondition, closure)
 		preconditions << precondition
 	}
 
 
-	def or(Closure closure) {
+	def or(@DelegatesTo(PreconditionDelegate) Closure closure) {
 		def precondition = nestedPrecondition(OrPrecondition, closure)
 		preconditions << precondition
 	}
 
-	def not(Closure closure) {
+	def not(@DelegatesTo(PreconditionDelegate) Closure closure) {
 		def precondition = nestedPrecondition(NotPrecondition, closure)
 		preconditions << precondition
 	}
@@ -146,7 +147,7 @@ class PreconditionDelegate {
 	 * @param closure nested closures to call.
 	 * @return the PreconditionContainer it builds.
 	 */
-	static PreconditionContainer buildPreconditionContainer(databaseChangeLog, changeSetId, Map params, Closure closure) {
+	static PreconditionContainer buildPreconditionContainer(databaseChangeLog, changeSetId, Map params, @DelegatesTo(PreconditionDelegate) Closure closure) {
 		def preconditions = new PreconditionContainer()
 
 		// Process parameters.  3 of them need a special case.
@@ -182,7 +183,7 @@ class PreconditionDelegate {
 	}
 
 
-	private def nestedPrecondition(Class preconditionClass, Closure closure) {
+	private def nestedPrecondition(Class<? extends PreconditionLogic> preconditionClass, @DelegatesTo(PreconditionDelegate) Closure closure) {
 
 		def nestedPrecondition = preconditionClass.newInstance()
 		def delegate = new PreconditionDelegate(databaseChangeLog: databaseChangeLog,

@@ -55,7 +55,7 @@ class ChangeSetDelegate {
 		changeSet.comments = DelegateUtil.expandExpressions(text, databaseChangeLog)
 	}
 
-	void preConditions(Map params = [:], Closure closure) {
+	void preConditions(Map params = [:], @DelegatesTo(ColumnDelegate) Closure closure) {
 		changeSet.preconditions = PreconditionDelegate.buildPreconditionContainer(databaseChangeLog, changeSet.id, params, closure)
 	}
 
@@ -84,7 +84,7 @@ class ChangeSetDelegate {
 	 * SQL to list of rollback changes.
 	 * @param closure the closure to evaluate.
 	 */
-	void rollback(Closure closure) {
+	void rollback(@DelegatesTo(ChangeSetDelegate) Closure closure) {
 		def delegate = new ChangeSetDelegate(changeSet: changeSet,
 						databaseChangeLog: databaseChangeLog,
 						inRollback: true)
@@ -151,7 +151,7 @@ class ChangeSetDelegate {
 		}
 	}
 
-	void modifySql(Map params = [:], Closure closure) {
+	void modifySql(Map params = [:], @DelegatesTo(ModifySqlDelegate) Closure closure) {
 		if ( closure ) {
 			def delegate = new ModifySqlDelegate(params, changeSet)
 			closure.delegate = delegate
@@ -165,7 +165,7 @@ class ChangeSetDelegate {
 		}
 	}
 
-	void groovyChange(Closure closure) {
+	void groovyChange(@DelegatesTo(GroovyChangeDelegate) Closure closure) {
 		def delegate = new GroovyChangeDelegate(closure, changeSet, resourceAccessor)
 		delegate.changeSet = changeSet
 		delegate.resourceAccessor = resourceAccessor
@@ -181,7 +181,7 @@ class ChangeSetDelegate {
 		addMapBasedChange('addAutoIncrement', AddAutoIncrementChange, params)
 	}
 
-	void addColumn(Map params, Closure closure) {
+	void addColumn(Map params, @DelegatesTo(ColumnDelegate) Closure closure) {
 		def change = makeColumnarChangeFromMap('addColumn', AddColumnChange, AddColumnConfig, params, closure)
 		addChange(change)
 	}
@@ -223,12 +223,12 @@ class ChangeSetDelegate {
 		addMapBasedChange('alterSequence', AlterSequenceChange, params)
 	}
 
-	void createIndex(Map params, Closure closure) {
+	void createIndex(Map params, @DelegatesTo(ColumnDelegate) Closure closure) {
 		def change = makeColumnarChangeFromMap('createIndex', CreateIndexChange, AddColumnConfig, params, closure)
 		addChange(change)
 	}
 
-	void createProcedure(Map params = [:], Closure closure) {
+	void createProcedure(Map params = [:], Closure<String> closure) {
 		def change = makeChangeFromMap('createProcedure', CreateProcedureChange, params)
 		change.resourceAccessor = resourceAccessor
 		change.procedureText = DelegateUtil.expandExpressions(closure.call(), databaseChangeLog)
@@ -259,18 +259,18 @@ class ChangeSetDelegate {
 		throw new ChangeLogParseException("Error: ChangeSet '${changeSet.id}': 'createStoredProcedure' changes have been removed. Use 'createProcedure' instead.")
 	}
 
-	void createTable(Map params, Closure closure) {
+	void createTable(Map params, @DelegatesTo(ColumnDelegate) Closure closure) {
 		def change = makeColumnarChangeFromMap('createTable', CreateTableChange, ColumnConfig, params, closure)
 		addChange(change)
 	}
 
-	void createView(Map params, Closure closure) {
+	void createView(Map params, Closure<String> closure) {
 		def change = makeChangeFromMap('createView', CreateViewChange, params)
 		change.selectQuery = DelegateUtil.expandExpressions(closure.call(), databaseChangeLog)
 		addChange(change)
 	}
 
-	void customChange(Map params, Closure closure = null) {
+	void customChange(Map params, @DelegatesTo(KeyValueDelegate) Closure closure = null) {
 		def change = new CustomChangeWrapper()
 		if ( closure ) {
 			change.classLoader = closure.getClass().getClassLoader()
@@ -304,9 +304,10 @@ class ChangeSetDelegate {
 		// It's not easy, since the closure would probably need the Database object to be
 		// interesting, and that's not available at parse time. Perhaps we could keep this closure
 		// around somewhere to run later when the Database is alive.
+		throw new UnsupportedOperationException("customerChange has not been implmented in yet :(")
 	}
 
-	void delete(Map params, Closure closure) {
+	void delete(Map params, @DelegatesTo(ColumnDelegate) Closure closure) {
 		def change = makeColumnarChangeFromMap('delete', DeleteDataChange, ColumnConfig, params, closure)
 		addChange(change)
 	}
@@ -323,7 +324,7 @@ class ChangeSetDelegate {
 		addMapBasedChange('dropColumn', DropColumnChange, params)
 	}
 
-	void dropColumn(Map params, Closure closure) {
+	void dropColumn(Map params, @DelegatesTo(ColumnDelegate) Closure closure) {
 		def change = makeColumnarChangeFromMap('dropColumn', DropColumnChange, ColumnConfig, params, closure)
 		addChange(change)
 	}
@@ -380,7 +381,7 @@ class ChangeSetDelegate {
 		addMapBasedChange('executeCommand', ExecuteShellCommandChange, params)
 	}
 
-	void executeCommand(Map params, Closure closure) {
+	void executeCommand(Map params, @DelegatesTo(ArgumentDelegate) Closure closure) {
 		def change = makeChangeFromMap('executeCommand', ExecuteShellCommandChange, params)
 		def delegate = new ArgumentDelegate(changeSetId: changeSet.id,
 				changeName: 'executeCommand')
@@ -395,12 +396,12 @@ class ChangeSetDelegate {
 		addChange(change)
 	}
 
-	void insert(Map params, Closure closure) {
+	void insert(Map params, @DelegatesTo(ColumnDelegate) Closure closure) {
 		def change = makeColumnarChangeFromMap('insert', InsertDataChange, ColumnConfig, params, closure)
 		addChange(change)
 	}
 
-	void loadData(Map params, Closure closure) {
+	void loadData(Map params, @DelegatesTo(ColumnDelegate) Closure closure) {
 		if ( params.file instanceof File ) {
 			throw new ChangeLogParseException("Warning: ChangeSet '${changeSet.id}': using a File object for loadData's 'file' attribute is no longer supported.  Use the path to the file instead.")
 		}
@@ -410,7 +411,7 @@ class ChangeSetDelegate {
 		addChange(change)
 	}
 
-	void loadUpdateData(Map params, Closure closure) {
+	void loadUpdateData(Map params, @DelegatesTo(ColumnDelegate) Closure closure) {
 		if ( params.file instanceof File ) {
 			throw new ChangeLogParseException("Warning: ChangeSet '${changeSet.id}': using a File object for loadUpdateData's 'file' attribute is no longer supported.  Use the path to the file instead.")
 		}
@@ -456,7 +457,7 @@ class ChangeSetDelegate {
 		addMapBasedChange('setColumnRemarks', SetTableRemarksChange, params)
 	}
 
-	void sql(Map params = [:], Closure closure) {
+	void sql(Map params = [:], @DelegatesTo(CommentDelegate) Closure closure) {
 		def change = makeChangeFromMap('sql', RawSQLChange, params)
 		def delegate = new CommentDelegate(changeSetId: changeSet.id,
 				changeName: 'sql')
@@ -533,7 +534,7 @@ class ChangeSetDelegate {
 		addChange(change)
 	}
 
-	void update(Map params, Closure closure) {
+	void update(Map params, @DelegatesTo(ColumnDelegate) Closure closure) {
 		def change = makeColumnarChangeFromMap('update', UpdateDataChange, ColumnConfig, params, closure)
 		addChange(change)
 	}
@@ -561,7 +562,7 @@ class ChangeSetDelegate {
 	 */
 	private def makeColumnarChangeFromMap(String name, Class changeClass,
 	                                      columnConfigClass, Map params,
-	                                      Closure closure) {
+                                        Closure closure) {
 		def change = makeChangeFromMap(name, changeClass, params)
 
 		def columnDelegate = new ColumnDelegate(columnConfigClass: columnConfigClass,

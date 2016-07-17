@@ -720,6 +720,32 @@ databaseChangeLog {
 	}
 
 	/**
+	 * Simple test to verify that including static import in the groovy file does not break anything
+	 */
+	@Test
+	void supportStaticImport() {
+		def rootChangeLogFile = "static-import-changelog.groovy"
+		resourceAccessor = new ClassLoaderResourceAccessor()
+
+		def parser = parserFactory.getParser(rootChangeLogFile, resourceAccessor)
+		def rootChangeLog = parser.parse(rootChangeLogFile, new ChangeLogParameters(), resourceAccessor)
+
+		assertNotNull rootChangeLog
+		def changeSets = rootChangeLog.changeSets
+		assertNotNull changeSets
+		assertEquals 3, changeSets.size()
+		assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
+		assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
+		assertEquals ROOT_CHANGE_SET, changeSets[2].id
+
+		def preconditions = rootChangeLog.preconditionContainer?.nestedPreconditions
+		assertNotNull preconditions
+		assertEquals 2, preconditions.size()
+		assertTrue preconditions[0] instanceof DBMSPrecondition
+		assertTrue preconditions[1] instanceof RunningAsPrecondition
+	}
+
+	/**
 	 * Try including all from a classpath loaded change log when the include
 	 * path doesn't exist is invalid.  Expect an error.
 	 * <p>

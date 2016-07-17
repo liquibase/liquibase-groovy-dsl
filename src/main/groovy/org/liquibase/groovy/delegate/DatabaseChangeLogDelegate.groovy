@@ -19,6 +19,7 @@ package org.liquibase.groovy.delegate
 import liquibase.ContextExpression
 import liquibase.Labels
 import liquibase.changelog.ChangeSet
+import liquibase.changelog.DatabaseChangeLog
 import liquibase.changelog.IncludeAllFilter
 import liquibase.database.ObjectQuotingStrategy
 import liquibase.exception.ChangeLogParseException
@@ -31,7 +32,7 @@ import liquibase.parser.ChangeLogParserFactory
  * @author Steven C. Saliman
  */
 class DatabaseChangeLogDelegate {
-	def databaseChangeLog
+	DatabaseChangeLog databaseChangeLog
 	def params
 	def resourceAccessor
 
@@ -57,7 +58,7 @@ class DatabaseChangeLogDelegate {
 	 * @param closure the closure containing, among other things, all the
 	 * refactoring changes the change set should make.
 	 */
-	void changeSet(Map params, closure) {
+	void changeSet(Map params, @DelegatesTo(ChangeSetDelegate) Closure closure) {
 		// Most of the time, we just pass any parameters through to a newly created
 		// Liquibase object, but we need to do things a little differently for a
 		// ChangeSet because the Liquibase object does not have setters for its
@@ -257,7 +258,7 @@ class DatabaseChangeLogDelegate {
 	 * @param params the attributes of the preConditions
 	 * @param closure the closure containing nested elements of a precondition.
 	 */
-	void preConditions(Map params = [:], Closure closure) {
+	void preConditions(Map params = [:], @DelegatesTo(PreconditionDelegate) Closure closure) {
 		databaseChangeLog.preconditions = PreconditionDelegate.buildPreconditionContainer(databaseChangeLog, '<none>', params, closure)
 	}
 

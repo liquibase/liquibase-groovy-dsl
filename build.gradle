@@ -167,6 +167,11 @@ def getPomConfiguration() {
         name 'Steven C. Saliman'
         email 'support@saliman.net'
       }
+      developer {
+        id 'conorrestall'
+        name 'Conor Restall'
+        email 'conor@restall.io'
+      }
     }
     scm {
       connection('scm:https://liquibase@github.com/liquibase/liquibase-groovy-dsl')

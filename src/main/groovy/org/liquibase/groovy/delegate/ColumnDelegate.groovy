@@ -52,7 +52,7 @@ class ColumnDelegate {
 	 * @param params the attributes to set.
 	 * @param closure a child closure to call, such as a constraint clause
 	 */
-	def column(Map params, Closure closure = null) {
+	def column(Map params, @DelegatesTo(ConstraintDelegate) Closure closure = null) {
 		def column = columnConfigClass.newInstance()
 
 		params.each { key, value ->

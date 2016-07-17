@@ -90,7 +90,7 @@ class ChangeSetTests {
 	 * @param closure the closure containing changes to parse.
 	 * @return the changeSet, with parsed changes from the closure added.
 	 */
-	def buildChangeSet(Closure closure) {
+	def buildChangeSet(@DelegatesTo(ChangeSetDelegate) Closure closure) {
 		def changelog = new DatabaseChangeLog(CHANGESET_FILEPATH)
 		changelog.addChangeSet(changeSet)
 		changelog.changeLogParameters = new ChangeLogParameters()
