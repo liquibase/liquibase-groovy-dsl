@@ -20,7 +20,7 @@ sourceCompatibility = 1.6
 targetCompatibility = 1.6
 
 // Release version that won't conflict with the bintray plugin
-def releaseVersion = '1.2.2'
+def releaseVersion = '1.2.3'
 group = 'org.liquibase'
 archivesBaseName = 'liquibase-groovy-dsl'
 version = releaseVersion
@@ -48,7 +48,7 @@ repositories {
 dependencies {
   compile 'org.codehaus.groovy:groovy:2.4.1'
   compile 'org.codehaus.groovy:groovy-sql:2.4.1'
-  compile 'org.liquibase:liquibase-core:3.4.2'
+  compile 'org.liquibase:liquibase-core:3.5.3'
   testCompile 'junit:junit:4.12'
   testRuntime 'com.h2database:h2:1.4.185'
   archives 'org.apache.maven.wagon:wagon-ssh:2.8'
