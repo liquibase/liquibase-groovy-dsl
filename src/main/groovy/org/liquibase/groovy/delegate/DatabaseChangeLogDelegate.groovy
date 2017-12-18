@@ -127,7 +127,7 @@ class DatabaseChangeLogDelegate {
 		}
 
 		// validate parameters.
-		def unsupportedKeys = params.keySet() - ['file', 'relativeToChangelogFile']
+		def unsupportedKeys = params.keySet() - ['file', 'relativeToChangelogFile', 'context']
 		if (unsupportedKeys.size() > 0) {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'include' element.")
 		}
@@ -143,7 +143,7 @@ class DatabaseChangeLogDelegate {
 	   	def fileName = databaseChangeLog
 			    .changeLogParameters
 			    .expandExpressions(params.file, databaseChangeLog)
-		includeChangeLog(fileName)
+		includeChangeLog(fileName, new ContextExpression((String) params.context))
 	}
 
 	/**
@@ -152,7 +152,7 @@ class DatabaseChangeLogDelegate {
 	 */
 	void includeAll(Map params = [:]) {
 		// validate parameters.
-		def unsupportedKeys = params.keySet() - ['path', 'relativeToChangelogFile', 'errorIfMissingOrEmpty', 'resourceFilter']
+		def unsupportedKeys = params.keySet() - ['path', 'relativeToChangelogFile', 'errorIfMissingOrEmpty', 'resourceFilter', 'context']
 		if (unsupportedKeys.size() > 0) {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'includeAll' element.")
 		}
@@ -172,7 +172,7 @@ class DatabaseChangeLogDelegate {
 				.changeLogParameters
 				.expandExpressions(params.path, databaseChangeLog)
 		loadIncludedChangeSets(pathName, relativeToChangelogFile, resourceFilter,
-				errorIfMissingOrEmpty,	getStandardChangeLogComparator());
+				errorIfMissingOrEmpty,	getStandardChangeLogComparator(), new ContextExpression((String) params.context));
 	}
 
 	/**
@@ -188,7 +188,7 @@ class DatabaseChangeLogDelegate {
 	 */
 	private def loadIncludedChangeSets(dirName, isRelativeToChangelogFile, resourceFilter,
 	                                   errorIfMissingOrEmpty,
-	                                   resourceComparator) {
+	                                   resourceComparator, includeContexts) {
 		try {
 			dirName = dirName.replace('\\', '/');
 
@@ -227,7 +227,7 @@ class DatabaseChangeLogDelegate {
 
 			// Filter the list to just the groovy files and include each one.
 			resources.findAll({it.endsWith('.groovy')}).each {
-				includeChangeLog(it);
+				includeChangeLog(it, includeContexts);
 			}
 		} catch (Exception e) {
 			throw new ChangeLogParseException("DatabaseChangeLog: error processing includeAll path '${dirName}.", e);
@@ -238,9 +238,12 @@ class DatabaseChangeLogDelegate {
 	 * Helper method to do the actual work of including a changelog file.
 	 * @param filename the file to include.
 	 */
-	private def includeChangeLog(filename) {
+	private def includeChangeLog(filename, ContextExpression includeContexts) {
 		def parser = ChangeLogParserFactory.getInstance().getParser(filename, resourceAccessor)
 		def includedChangeLog = parser.parse(filename, databaseChangeLog.changeLogParameters, resourceAccessor)
+		if (includeContexts) {
+			includedChangeLog.setIncludeContexts(includeContexts)
+		}
 		includedChangeLog?.changeSets.each { changeSet ->
 			databaseChangeLog.addChangeSet(changeSet)
 		}
