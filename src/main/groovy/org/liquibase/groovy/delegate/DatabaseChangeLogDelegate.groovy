@@ -83,6 +83,14 @@ class DatabaseChangeLogDelegate {
 			}
 		}
 
+		if( objectQuotingStrategy == null ){
+			objectQuotingStrategy= databaseChangeLog.objectQuotingStrategy
+		}
+
+		if( objectQuotingStrategy == null ){
+			objectQuotingStrategy= ObjectQuotingStrategy.LEGACY
+		}
+
 		def changeSet = new ChangeSet(
 				DelegateUtil.expandExpressions(params.id, databaseChangeLog),
 				DelegateUtil.expandExpressions(params.author, databaseChangeLog),
