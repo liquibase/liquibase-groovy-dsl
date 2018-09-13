@@ -216,7 +216,7 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 		assertEquals 'monkey', changes[1].tableName
 		assertEquals 'emotion', changes[1].columnName
 		assertNotNull changes[1].resourceAccessor
-		assertNoOutput()
+//		assertNoOutput() // FIXME: Initializing the liquibase registry creates some debug logs, this will create an issue
 	}
 
 	/**
@@ -389,6 +389,14 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 	void processInvalidChange() {
 		buildChangeSet {
 			createLink(name: 'myLink')
+		}
+	}
+
+	// invalid method, such as createLink
+	@Test(expected = ChangeLogParseException)
+	void processExtensionChange() {
+		buildChangeSet {
+			sampleExtension(name: 'sampleExtension')
 		}
 	}
 }

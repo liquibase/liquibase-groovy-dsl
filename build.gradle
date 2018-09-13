@@ -15,6 +15,7 @@ apply plugin: 'groovy'
 apply plugin: 'maven'
 apply plugin: 'signing'
 apply plugin: 'com.jfrog.bintray'
+apply plugin: 'maven-publish'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -44,6 +45,22 @@ repositories {
   mavenLocal()
 }
 
+
+// Enables publishing to a local maven repo which is easier for testing
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			from components.java
+			// more goes in here
+			artifact sourceJar {
+				classifier  "sources"
+			}
+		}
+	}
+	repositories {
+		mavenLocal()
+	}
+}
 
 dependencies {
   compile 'org.codehaus.groovy:groovy:2.4.12'

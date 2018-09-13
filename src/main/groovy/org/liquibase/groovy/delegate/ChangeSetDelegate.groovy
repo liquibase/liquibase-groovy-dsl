@@ -16,13 +16,18 @@
 
 package org.liquibase.groovy.delegate
 
-import liquibase.change.AddColumnConfig
+
+import liquibase.change.Change
+import liquibase.change.ChangeFactory
+import liquibase.change.ChangeWithColumns
 import liquibase.change.ColumnConfig
 import liquibase.change.core.*
 import liquibase.change.custom.CustomChangeWrapper
 import liquibase.exception.ChangeLogParseException
 import liquibase.exception.RollbackImpossibleException
 import liquibase.util.PatchedObjectUtil
+
+import java.lang.reflect.ParameterizedType
 
 /**
  * This class is the closure delegate for a ChangeSet.  It processes all the
@@ -47,6 +52,7 @@ class ChangeSetDelegate {
 	def databaseChangeLog
 	def resourceAccessor
 	def inRollback
+	private Map<String, SortedSet<Class<? extends Change>>> registry
 
 	// ------------------------------------------------------------------------
 	// Non refactoring elements.
@@ -178,19 +184,6 @@ class ChangeSetDelegate {
 	// -----------------------------------------------------------------------
 	// Refactoring changes
 
-	void addAutoIncrement(Map params) {
-		addMapBasedChange('addAutoIncrement', AddAutoIncrementChange, params)
-	}
-
-	void addColumn(Map params, Closure closure) {
-		def change = makeColumnarChangeFromMap('addColumn', AddColumnChange, AddColumnConfig, params, closure)
-		addChange(change)
-	}
-
-	void addDefaultValue(Map params) {
-		addMapBasedChange('addDefaultValue', AddDefaultValueChange, params)
-	}
-
 	/**
 	 * process an addForeignKeyConstraint change.  This change has a deprecated
 	 * property for which we need a warning.
@@ -201,31 +194,17 @@ class ChangeSetDelegate {
 			println "Warning: ChangeSet '${changeSet.id}': addForeignKeyConstraint's referencesUniqueColumn parameter has been deprecated, and may be removed in a future release."
 			println "Consider removing it, as Liquibase ignores it anyway."
 		}
-		addMapBasedChange('addForeignKeyConstraint', AddForeignKeyConstraintChange, params)
-	}
 
-	void addLookupTable(Map params) {
-		addMapBasedChange('addLookupTable', AddLookupTableChange, params)
-	}
+		def name = 'addForeignKeyConstraint'
+		Map<String, SortedSet<Class<? extends Change>>> registry = ChangeFactory.getInstance().getRegistry()
+		SortedSet<Class<? extends Change>> changes = registry.get(name)
 
-	void addNotNullConstraint(Map params) {
-		addMapBasedChange('addNotNullConstraint', AddNotNullConstraintChange, params)
-	}
-
-	void addPrimaryKey(Map params) {
-		addMapBasedChange('addPrimaryKey', AddPrimaryKeyChange, params)
-	}
-
-	void addUniqueConstraint(Map params) {
-		addMapBasedChange('addUniqueConstraint', AddUniqueConstraintChange, params)
-	}
-
-	void alterSequence(Map params) {
-		addMapBasedChange('alterSequence', AlterSequenceChange, params)
-	}
-
-	void createIndex(Map params, Closure closure) {
-		def change = makeColumnarChangeFromMap('createIndex', CreateIndexChange, AddColumnConfig, params, closure)
+		def change
+		if (changes == null || changes.isEmpty()) {
+			change = makeChangeFromMap(name, AddForeignKeyConstraintChange, params)
+		} else {
+			change = makeChangeFromMap(name, changes.getAt(0), params)
+		}
 		addChange(change)
 	}
 
@@ -242,10 +221,6 @@ class ChangeSetDelegate {
 		addChange(change)
 	}
 
-	void createSequence(Map params) {
-		addMapBasedChange('createSequence', CreateSequenceChange, params)
-	}
-
 	/**
 	 * This method only remains to let users know the correct name for this
 	 * change.
@@ -258,16 +233,6 @@ class ChangeSetDelegate {
 	@Deprecated
 	void createStoredProcedure(String storedProc) {
 		throw new ChangeLogParseException("Error: ChangeSet '${changeSet.id}': 'createStoredProcedure' changes have been removed. Use 'createProcedure' instead.")
-	}
-
-	void createTable(Map params, Closure closure) {
-		def change = makeColumnarChangeFromMap('createTable', CreateTableChange, ColumnConfig, params, closure)
-		addChange(change)
-	}
-
-	void createView(Map params) {
-		def change = makeChangeFromMap('createView', CreateViewChange, params)
-		addChange(change)
 	}
 
 	void createView(Map params, Closure closure) {
@@ -322,59 +287,6 @@ class ChangeSetDelegate {
 		addMapBasedChange('delete', DeleteDataChange, params)
 	}
 
-	void dropAllForeignKeyConstraints(Map params) {
-		addMapBasedChange('dropAllForeignKeyConstraints', DropAllForeignKeyConstraintsChange, params)
-	}
-
-	void dropColumn(Map params) {
-		addMapBasedChange('dropColumn', DropColumnChange, params)
-	}
-
-	void dropColumn(Map params, Closure closure) {
-		def change = makeColumnarChangeFromMap('dropColumn', DropColumnChange, ColumnConfig, params, closure)
-		addChange(change)
-	}
-
-	void dropDefaultValue(Map params) {
-		addMapBasedChange('dropDefaultValue', DropDefaultValueChange, params)
-	}
-
-	void dropForeignKeyConstraint(Map params) {
-		addMapBasedChange('dropForeignKeyConstraint', DropForeignKeyConstraintChange, params)
-	}
-
-	void dropIndex(Map params) {
-		addMapBasedChange('dropIndex', DropIndexChange, params)
-	}
-
-	void dropNotNullConstraint(Map params) {
-		addMapBasedChange('dropNotNullConstraint', DropNotNullConstraintChange, params)
-	}
-
-	void dropPrimaryKey(Map params) {
-		addMapBasedChange('dropPrimaryKey', DropPrimaryKeyChange, params)
-	}
-
-	void dropProcedure(Map params) {
-		addMapBasedChange('dropProcedure', DropProcedureChange, params)
-	}
-
-	void dropSequence(Map params) {
-		addMapBasedChange('dropSequence', DropSequenceChange, params)
-	}
-
-	void dropTable(Map params) {
-		addMapBasedChange('dropTable', DropTableChange, params)
-	}
-
-	void dropUniqueConstraint(Map params) {
-		addMapBasedChange('dropUniqueConstraint', DropUniqueConstraintChange, params)
-	}
-
-	void dropView(Map params) {
-		addMapBasedChange('dropView', DropViewChange, params)
-	}
-
 	/**
 	 * Process an "empty" changes.  It doesn't do anything, but it is allowed
 	 * by the spec.
@@ -402,17 +314,22 @@ class ChangeSetDelegate {
 		addChange(change)
 	}
 
-	void insert(Map params, Closure closure) {
-		def change = makeColumnarChangeFromMap('insert', InsertDataChange, ColumnConfig, params, closure)
-		addChange(change)
-	}
-
 	void loadData(Map params, Closure closure) {
 		if ( params.file instanceof File ) {
 			throw new ChangeLogParseException("Warning: ChangeSet '${changeSet.id}': using a File object for loadData's 'file' attribute is no longer supported.  Use the path to the file instead.")
 		}
 
-		def change = makeColumnarChangeFromMap('loadData', LoadDataChange, LoadDataColumnConfig, params, closure)
+		def name = 'loadData'
+		Map<String, SortedSet<Class<? extends Change>>> registry = ChangeFactory.getInstance().getRegistry()
+		SortedSet<Class<? extends Change>> changes = registry.get(name)
+
+		def change
+		if (changes == null || changes.isEmpty()) {
+			change = makeColumnarChangeFromMap(name, LoadDataChange, LoadDataColumnConfig, params, closure)
+		} else {
+			change = makeColumnarChangeFromMap(name, changes.getAt(0), getColumnConfigClass(changes.getAt(0)), params, closure)
+		}
+
 		addChange(change)
 	}
 
@@ -421,16 +338,18 @@ class ChangeSetDelegate {
 			throw new ChangeLogParseException("Warning: ChangeSet '${changeSet.id}': using a File object for loadUpdateData's 'file' attribute is no longer supported.  Use the path to the file instead.")
 		}
 
-		def change = makeColumnarChangeFromMap('loadUpdateData', LoadUpdateDataChange, LoadDataColumnConfig, params, closure)
+		def name = 'loadUpdateData'
+		Map<String, SortedSet<Class<? extends Change>>> registry = ChangeFactory.getInstance().getRegistry()
+		SortedSet<Class<? extends Change>> changes = registry.get(name)
+
+		def change
+		if (changes == null || changes.isEmpty()) {
+			change = makeColumnarChangeFromMap(name, LoadUpdateDataChange, LoadDataColumnConfig, params, closure)
+		} else {
+			change = makeColumnarChangeFromMap(name, changes.getAt(0), getColumnConfigClass(changes.getAt(0)), params, closure)
+		}
+
 		addChange(change)
-	}
-
-	void mergeColumns(Map params) {
-		addMapBasedChange('mergeColumns', MergeColumnChange, params)
-	}
-
-	void modifyDataType(Map params) {
-		addMapBasedChange('modifyDataType', ModifyDataTypeChange, params)
 	}
 
 	void output(Map params) {
@@ -443,30 +362,6 @@ class ChangeSetDelegate {
 			params.target = 'STDERR'
 		}
 		addMapBasedChange('output', OutputChange, params)
-	}
-
-	void renameColumn(Map params) {
-		addMapBasedChange('renameColumn', RenameColumnChange, params)
-	}
-
-	void renameSequence(Map params) {
-		addMapBasedChange('renameSequence', RenameSequenceChange, params)
-	}
-
-	void renameTable(Map params) {
-		addMapBasedChange('renameTable', RenameTableChange, params)
-	}
-
-	void renameView(Map params) {
-		addMapBasedChange('renameView', RenameViewChange, params)
-	}
-
-	void setColumnRemarks(Map params) {
-		addMapBasedChange('setColumnRemarks', SetColumnRemarksChange, params)
-	}
-
-	void setTableRemarks(Map params) {
-		addMapBasedChange('setColumnRemarks', SetTableRemarksChange, params)
 	}
 
 	void sql(Map params = [:], Closure closure) {
@@ -548,19 +443,60 @@ class ChangeSetDelegate {
 		addChange(change)
 	}
 
-	void update(Map params, Closure closure) {
-		def change = makeColumnarChangeFromMap('update', UpdateDataChange, ColumnConfig, params, closure)
-		addChange(change)
-	}
-
 	/**
 	 * Groovy calls methodMissing when it can't find a matching method to call.
+	 *
+	 * We'll do a lookup on the liquibase registry to find a possible change for the name of the method. If we can find it, we'll use that.
+	 *
+	 * else
+	 *
 	 * We use it to tell the user which changeSet had the invalid element.
 	 * @param name the name of the method Groovy wanted to call.
 	 * @param args the original arguments to that method.
 	 */
-	def methodMissing(String name, args) {
-		throw new ChangeLogParseException("ChangeSet '${changeSet.id}': '${name}' is not a valid element of a ChangeSet")
+	void methodMissing(String name, args) {
+		if(this.registry == null){
+			this.registry = ChangeFactory.getInstance().getRegistry()
+		}
+
+		SortedSet<Class<? extends Change>> changes = this.registry.get(name)
+
+		if (changes == null || changes.isEmpty()) {
+			throw new ChangeLogParseException("ChangeSet '${changeSet.id}': '${name}' is not a valid element of a ChangeSet")
+		}
+
+		Map params = args != null && args.size() > 0 ? (Map) args[0] : null
+		Closure closure = args != null && args.size() > 1 ? (Closure) args[1] : null
+
+		def change
+		Class<? extends Change> changeClass = changes.getAt(0)
+
+		if (closure && ChangeWithColumns.isAssignableFrom(changeClass)) {
+			change = makeColumnarChangeFromMap(name, changeClass, getColumnConfigClass(changeClass), params, closure)
+		} else {
+			change = makeChangeFromMap(name, changeClass, params)
+		}
+
+		addChange(change)
+	}
+
+	static Class<? extends ColumnConfig> getColumnConfigClass(def changeClass) {
+		Class<? extends ColumnConfig> columnConfigType = null
+		while (true) {
+			if (changeClass.equals(Object.class)) {
+				break
+			}
+			def changeWithColumnInterfaceType = changeClass.getGenericInterfaces().find {
+				it instanceof ParameterizedType && it.getRawType().equals(ChangeWithColumns.class)
+			}
+			if (changeWithColumnInterfaceType) {
+				columnConfigType = changeWithColumnInterfaceType.getActualTypeArguments().getAt(0)
+			}
+
+			changeClass = changeClass.getSuperclass()
+		}
+
+		columnConfigType
 	}
 
 	/**
