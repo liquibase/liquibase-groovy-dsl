@@ -33,7 +33,6 @@ import static org.junit.Assert.assertEquals
 import static org.junit.Assert.assertNotNull
 import static org.junit.Assert.assertNull
 import static org.junit.Assert.assertTrue
-import static org.junit.Assert.fail
 
 /**
  * One of three test classes for the {@link DatabaseChangeLogDelegate}.  The
@@ -57,7 +56,13 @@ class DatabaseChangeLogDelegateIncludeTests {
 
 	@Before
 	void registerParser() {
-		resourceAccessor = new FileSystemResourceAccessor()
+		// when Liquibase runs, it gives a FileSystemResourceAccessor based on
+		// the absolute path of the current working directory.  We'll do the
+		// same for this test.  We'll make a file for ".", then get that file's
+		// absolute path, which produces something like "/some/path/to/dir/.",
+		// just like what Liquibase does.
+		def f = new File(".")
+		resourceAccessor = new FileSystemResourceAccessor(new File(f.absolutePath))
 		parserFactory = ChangeLogParserFactory.instance
 		ChangeLogParserFactory.getInstance().register(new GroovyLiquibaseChangeLogParser())
 		// make sure we start with clean temporary directories before each test
@@ -106,16 +111,17 @@ databaseChangeLog {
 }
 """)
 		def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-		parser.parse(rootChangeLogFile.absolutePath, new ChangeLogParameters(), resourceAccessor)
+		parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
 	}
 
 	/**
 	 * Try including a file that has a database changelog property in the name.
 	 * This proves that we can expand tokens in filenames.  We don't validate
-	 * any filenames here, just that we can get the right change sets.
+	 * any filenames here, just that we can get the right change sets.  We
+	 * also have a context to prove we can handle those too.
 	 */
 	@Test
-	void includeWithValidProperty() {
+	void includeWithValidPropertyAndContext() {
 		def includedChangeLogFile = createFileFrom(INCLUDED_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
   preConditions {
@@ -141,57 +147,7 @@ databaseChangeLog {
     dbms(type: 'mysql')
   }
   property(name: 'fileName', value: '${baseName}')
-  include(file: '\${fileName}.groovy')
-  changeSet(author: 'ssaliman', id: 'ROOT_CHANGE_SET') {
-    addColumn(tableName: 'monkey') {
-      column(name: 'emotion', type: 'varchar(50)')
-    }
-  }
-}
-""")
-
-		// Let's be whimsical here - use the absolute file for the root
-		// changelog to prove we can do it.
-		def parser = parserFactory.getParser(rootChangeLogFile.absolutePath, resourceAccessor)
-		def rootChangeLog = parser.parse(rootChangeLogFile.absolutePath, new ChangeLogParameters(), resourceAccessor)
-
-		assertNotNull rootChangeLog
-		def changeSets = rootChangeLog.changeSets
-		assertNotNull changeSets
-		assertEquals 2, changeSets.size()
-		assertEquals 'included-change-set', changeSets[0].id
-		assertEquals 'ROOT_CHANGE_SET', changeSets[1].id
-
-		verifyIncludedPreconditions(rootChangeLog.preconditionContainer?.nestedPreconditions)
-	}
-
-	/**
-	 * Try including a file with an absolute filename.  This test will also
-	 * make sure the contexts are handle properly.
-	 */
-	@Test
-	void includeAbsoluteFile() {
-		def includedChangeLogFile = createFileFrom(INCLUDED_CHANGELOG_DIR, '.groovy', """
-databaseChangeLog {
-  preConditions {
-    runningAs(username: 'ssaliman')
-  }
-
-  changeSet(author: 'ssaliman', id: 'included-change-set') {
-    renameTable(oldTableName: 'prosaic_table_name', newTableName: 'monkey')
-  }
-}
-""")
-		// The cannonicalPath will be absolute...
-		includedChangeLogFile = includedChangeLogFile.canonicalPath
-		includedChangeLogFile = includedChangeLogFile.replaceAll("\\\\", "/")
-
-		def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
-databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  include(file: '${includedChangeLogFile}', context: 'myContext')
+  include(file: '\${fileName}.groovy', , context: 'myContext')
   changeSet(author: 'ssaliman', id: 'ROOT_CHANGE_SET') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -209,13 +165,6 @@ databaseChangeLog {
 		assertEquals 2, changeSets.size()
 		assertEquals 'included-change-set', changeSets[0].id
 		assertEquals 'ROOT_CHANGE_SET', changeSets[1].id
-
-		// Let's make sure we started with an absolute filename, then check
-		// that the path of the included change set is absolute.  The change
-		// that came from the root changelog should still be relative.
-		assertAbsolutePath includedChangeLogFile
-		assertAbsolutePath changeSets[0].filePath
-		assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
 
 		// Take a look at the contexts.  The change that came in with the
 		// include should have one, the change in the root changelog should not.
@@ -281,68 +230,6 @@ databaseChangeLog {
 		// include should have one, the change in the root changelog should not.
 		assertEquals 'myContext', changeSets[0].changeLog.includeContexts.toString()
 		assertNull changeSets[1].changeLog.includeContexts
-
-		verifyIncludedPreconditions(rootChangeLog.preconditionContainer?.nestedPreconditions)
-	}
-
-	/**
-	 * Try including a file relative to the changelolg file when the root
-	 * changelog is absolute.  The main thing here is to make sure the included
-	 * change sets keep relative paths.
-	 * <p>
-	 * At the moment, if you start with an absolute changelog, all the included
-	 * changes will have absolute paths, even when they are supposed to be
-	 * relative to the changelog.  This is an internal liquibase issue.  If
-	 * liquibase ever changes how it does things, this test may need to change.
-	 */
-	@Test
-	void includeRelativeToAbsoluteChangeLog() {
-		def includedChangeLogFile = createFileFrom(INCLUDED_CHANGELOG_DIR, '.groovy', """
-databaseChangeLog {
-  preConditions {
-    runningAs(username: 'ssaliman')
-  }
-
-  changeSet(author: 'ssaliman', id: 'included-change-set') {
-    renameTable(oldTableName: 'prosaic_table_name', newTableName: 'monkey')
-  }
-}
-""")
-
-		includedChangeLogFile = includedChangeLogFile.name
-		def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
-databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  include(file: 'include/${includedChangeLogFile}', relativeToChangelogFile: true, context: 'myContext')
-  changeSet(author: 'ssaliman', id: 'ROOT_CHANGE_SET') {
-    addColumn(tableName: 'monkey') {
-      column(name: 'emotion', type: 'varchar(50)')
-    }
-  }
-}
-""")
-
-		def parser = parserFactory.getParser(rootChangeLogFile.absolutePath, resourceAccessor)
-		def rootChangeLog = parser.parse(rootChangeLogFile.absolutePath, new ChangeLogParameters(), resourceAccessor)
-
-		assertNotNull rootChangeLog
-		def changeSets = rootChangeLog.changeSets
-		assertNotNull changeSets
-		assertEquals 2, changeSets.size()
-		assertEquals 'included-change-set', changeSets[0].id
-		assertEquals 'ROOT_CHANGE_SET', changeSets[1].id
-
-		// Take a look at the contexts.  The change that came in with the
-		// include should have one, the change in the root changelog should not.
-		assertEquals 'myContext', changeSets[0].changeLog.includeContexts.toString()
-		assertNull changeSets[1].changeLog.includeContexts
-
-		// Check that the paths of the included change set is relative. The 2nd
-		// change set did not come from the "include", so it will be absolute.
-		assertAbsolutePath changeSets[0].filePath
-		assertAbsolutePath changeSets[1].filePath
 
 		verifyIncludedPreconditions(rootChangeLog.preconditionContainer?.nestedPreconditions)
 	}
@@ -504,19 +391,6 @@ databaseChangeLog {
 		assertTrue preconditions[1] instanceof PreconditionContainer
 		preconditions = preconditions[1].nestedPreconditions
 		assertTrue preconditions[0] instanceof RunningAsPrecondition
-	}
-
-	/**
-	 * Helper method to determine if a given path represents an absolute path.
-	 * If the given path is not an absolute path for the platform, this method
-	 * will fail the test.
-	 * @param path the path to check
-	 */
-	private def assertAbsolutePath(path) {
-		if ( !new File(path).isAbsolute() ) {
-			fail "'${path}' is not an absolute path"
-		}
-
 	}
 }
 

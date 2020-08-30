@@ -1,4 +1,4 @@
-package liquibase.ext
+package org.liquibase.groovy.helper
 
 
 import liquibase.change.AbstractChange

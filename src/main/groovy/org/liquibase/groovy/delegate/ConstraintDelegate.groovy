@@ -37,7 +37,6 @@ class ConstraintDelegate {
     params.each { key, value ->
       try {
 	      def x = DelegateUtil.expandExpressions(value, databaseChangeLog)
-	      def y = x.class
 	      PatchedObjectUtil.setProperty(constraint, key, x)
       } catch(RuntimeException e) {
 	      // Rethrow as an ChangeLogParseException with a more helpful message

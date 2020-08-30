@@ -62,7 +62,13 @@ class DatabaseChangeLogDelegateTests {
 
 	@Before
 	void registerParser() {
-		resourceAccessor = new FileSystemResourceAccessor()
+		// when Liquibase runs, it gives a FileSystemResourceAccessor based on
+		// the absolute path of the current working directory.  We'll do the
+		// same for this test.  We'll make a file for ".", then get that file's
+		// absolute path, which produces something like "/some/path/to/dir/.",
+		// just like what Liquibase does.
+		def f = new File(".")
+		resourceAccessor = new FileSystemResourceAccessor(new File(f.absolutePath))
 		parserFactory = ChangeLogParserFactory.instance
 		ChangeLogParserFactory.getInstance().register(new GroovyLiquibaseChangeLogParser())
 		// make sure we start with clean temporary directories before each test
@@ -133,8 +139,8 @@ class DatabaseChangeLogDelegateTests {
 		def changeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog()
 """)
-		def parser = parserFactory.getParser(changeLogFile.absolutePath, resourceAccessor)
-		parser.parse(changeLogFile.absolutePath, new ChangeLogParameters(), resourceAccessor)
+		def parser = parserFactory.getParser(changeLogFile.path, resourceAccessor)
+		parser.parse(changeLogFile.path, new ChangeLogParameters(), resourceAccessor)
 	}
 
 
@@ -144,8 +150,8 @@ databaseChangeLog()
     databaseChangeLog = {
     }
     """)
-		ChangeLogParser parser = parserFactory.getParser(changeLogFile.absolutePath, resourceAccessor)
-		DatabaseChangeLog changeLog = parser.parse(changeLogFile.absolutePath, null, resourceAccessor)
+		ChangeLogParser parser = parserFactory.getParser(changeLogFile.path, resourceAccessor)
+		DatabaseChangeLog changeLog = parser.parse(changeLogFile.path, null, resourceAccessor)
 
 		assertNotNull "Parsed DatabaseChangeLog was null", changeLog
 	}
@@ -224,6 +230,7 @@ databaseChangeLog()
 			          created: 'test_created',
 			          runOrder: 'last',
 			          ignore: true,
+					  runWith: 'my_executor',
 			          filePath: 'file_path') {
 			  dropTable(tableName: 'monkey')
 			}
@@ -246,6 +253,7 @@ databaseChangeLog()
 		assertEquals 'test_created', changeLog.changeSets[0].created
 		assertEquals 'last', changeLog.changeSets[0].runOrder
 		assertTrue changeLog.changeSets[0].ignore
+		assertEquals 'my_executor', changeLog.changeSets[0].runWith
 	}
 
 	/**
@@ -269,7 +277,8 @@ databaseChangeLog()
 			          created: 'test_created',
 			          runOrder: 'last',
 			          ignore: true,
-			          logicalFilePath: 'file_path') {
+					  runWith: 'my_executor',
+					  logicalFilePath: 'file_path') {
 			  dropTable(tableName: 'monkey')
 			}
 		}
@@ -291,6 +300,7 @@ databaseChangeLog()
 		assertEquals 'test_created', changeLog.changeSets[0].created
 		assertEquals 'last', changeLog.changeSets[0].runOrder
 		assertTrue changeLog.changeSets[0].ignore
+		assertEquals 'my_executor', changeLog.changeSets[0].runWith
 	}
 
 	/**
@@ -315,6 +325,7 @@ databaseChangeLog()
 					objectQuotingStrategy: "QUOTE_ONLY_RESERVED_WORDS",
 					created: 'test_created',
 					runOrder: 'first',
+					runWith: 'my_executor',
 					ignore: false) {
 				dropTable(tableName: 'monkey')
 			}
@@ -337,6 +348,7 @@ databaseChangeLog()
 		assertEquals 'test_created', changeLog.changeSets[0].created
 		assertEquals 'first', changeLog.changeSets[0].runOrder
 		assertFalse changeLog.changeSets[0].ignore
+		assertEquals 'my_executor', changeLog.changeSets[0].runWith
 	}
 
 	/**
@@ -521,14 +533,15 @@ databaseChangeLog()
 	}
 
 	/**
-	 * Try including a property from a file when we don't hae a dbms or context.
+	 * Try including a property from a file when we don't have a dbms or
+	 * context.
 	 */
 	@Test
 	void propertyFromFilePartial() {
 		def propertyFile = createFileFrom(TMP_CHANGELOG_DIR, '.properties', """
 emotion=angry
 """)
-		propertyFile = propertyFile.canonicalPath
+		propertyFile = propertyFile.path
 		propertyFile = propertyFile.replaceAll("\\\\", "/")
 
 		def changeLog = buildChangeLog {
@@ -558,7 +571,7 @@ emotion=angry
 		def propertyFile = createFileFrom(TMP_CHANGELOG_DIR, '.properties', """
 emotion=angry
 """)
-		propertyFile = propertyFile.canonicalPath
+		propertyFile = propertyFile.path
 		propertyFile = propertyFile.replaceAll("\\\\", "/")
 
 		def changeLog = buildChangeLog {

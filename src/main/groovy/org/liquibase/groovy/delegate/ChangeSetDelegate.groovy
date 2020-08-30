@@ -16,6 +16,7 @@
 
 package org.liquibase.groovy.delegate
 
+import liquibase.Scope
 import liquibase.change.AddColumnConfig
 import liquibase.change.ChangeFactory
 import liquibase.change.ColumnConfig
@@ -45,9 +46,8 @@ import liquibase.util.PatchedObjectUtil
 class ChangeSetDelegate {
 	def changeSet
 	def databaseChangeLog
-	def resourceAccessor
 	def inRollback
-	def registry
+	def changeFactory = Scope.getCurrentScope().getSingleton(ChangeFactory.class)
 
 	// ------------------------------------------------------------------------
 	// Non refactoring elements.
@@ -88,8 +88,7 @@ class ChangeSetDelegate {
 	void rollback(Closure closure) {
 		def delegate = new ChangeSetDelegate(changeSet: changeSet,
 						databaseChangeLog: databaseChangeLog,
-						inRollback: true,
-						resourceAccessor: resourceAccessor)
+						inRollback: true)
 		closure.delegate = delegate
 		closure.resolveStrategy = Closure.DELEGATE_FIRST
 		def x = closure.call()
@@ -116,12 +115,6 @@ class ChangeSetDelegate {
 		def id = null
 		def author = null
 		def filePath = null
-		if ( params.containsKey('id') ) {
-			throw new ChangeLogParseException("Error: ChangeSet '${changeSet.id}': the 'id' attribute of a rollback has been removed. Use 'changeSetId' instead.")
-		}
-		if ( params.containsKey('author') ) {
-			throw new ChangeLogParseException("Error: ChangeSet '${changeSet.id}': the 'author' attribute of a rollback has been removed. Use 'changeSetAuthor' instead.")
-		}
 		params.each { key, value ->
 			if ( key == "changeSetId" ) {
 				id = DelegateUtil.expandExpressions(value, databaseChangeLog)
@@ -169,9 +162,8 @@ class ChangeSetDelegate {
 	}
 
 	void groovyChange(Closure closure) {
-		def delegate = new GroovyChangeDelegate(closure, changeSet, resourceAccessor)
+		def delegate = new GroovyChangeDelegate(closure, changeSet)
 		delegate.changeSet = changeSet
-		delegate.resourceAccessor = resourceAccessor
 		closure.delegate = delegate
 		closure.resolveStrategy = Closure.DELEGATE_FIRST
 		closure.call()
@@ -233,11 +225,11 @@ class ChangeSetDelegate {
 	 * @param params the properties to set on the new changes.
 	 */
 	void addForeignKeyConstraint(Map params) {
+		addMapBasedChange('addForeignKeyConstraint', params)
 		if ( params['referencesUniqueColumn'] != null ) {
 			println "Warning: ChangeSet '${changeSet.id}': addForeignKeyConstraint's referencesUniqueColumn parameter has been deprecated, and may be removed in a future release."
 			println "Consider removing it, as Liquibase ignores it anyway."
 		}
-		addMapBasedChange('addForeignKeyConstraint', params)
 	}
 
 	/**
@@ -271,7 +263,6 @@ class ChangeSetDelegate {
 	void createProcedure(String storedProc) {
 		def change = lookupChange('createProcedure')
 		change.procedureText = DelegateUtil.expandExpressions(storedProc, databaseChangeLog)
-		change.setResourceAccessor(resourceAccessor)
 		addChange(change)
 	}
 
@@ -312,7 +303,6 @@ class ChangeSetDelegate {
 		}
 		String className = DelegateUtil.expandExpressions(params['class'], databaseChangeLog)
 		change.setClass(className)
-		change.setResourceAccessor(resourceAccessor)
 
 		if ( closure ) {
 			def delegate = new KeyValueDelegate()
@@ -471,7 +461,6 @@ class ChangeSetDelegate {
 	void sql(String sql) {
 		def change = lookupChange('sql')
 		change.sql = DelegateUtil.expandExpressions(sql, databaseChangeLog)
-		change.setResourceAccessor(resourceAccessor)
 		addChange(change)
 	}
 
@@ -505,7 +494,6 @@ class ChangeSetDelegate {
 	void stop(String message) {
 		def change = lookupChange('stop')
 		change.message = DelegateUtil.expandExpressions(message, databaseChangeLog)
-		change.setResourceAccessor(resourceAccessor)
 		addChange(change)
 	}
 
@@ -519,7 +507,6 @@ class ChangeSetDelegate {
 	void tagDatabase(String tagName) {
 		def change = lookupChange('tagDatabase')
 		change.tag = DelegateUtil.expandExpressions(tagName, databaseChangeLog)
-		change.setResourceAccessor(resourceAccessor)
 		addChange(change)
 	}
 
@@ -541,17 +528,12 @@ class ChangeSetDelegate {
 	 * name in the registry.
 	 */
 	private def lookupChange(name) {
-		if ( registry == null ) {
-			registry = ChangeFactory.getInstance().getRegistry()
-		}
+		def change = changeFactory.create(name)
 
-		def changes = registry.get(name)
-
-		if ( changes == null || changes.isEmpty() ) {
+		if ( change == null ) {
 			throw new ChangeLogParseException("ChangeSet '${changeSet.id}': '${name}' is not a valid element of a ChangeSet")
 		}
-		def changeClass = changes[0]
-		return changeClass.newInstance()
+		return change
 	}
 
 	/**
@@ -616,7 +598,6 @@ class ChangeSetDelegate {
 	 */
 	private def makeChangeFromMap(String name, Map sourceMap) {
 		def change = lookupChange(name)
-		change.resourceAccessor = resourceAccessor
 
 		sourceMap.each { key, value ->
 			try {

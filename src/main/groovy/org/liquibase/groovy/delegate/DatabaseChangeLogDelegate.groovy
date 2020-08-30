@@ -20,10 +20,11 @@ import liquibase.ContextExpression
 import liquibase.LabelExpression
 import liquibase.Labels
 import liquibase.changelog.ChangeSet
+import liquibase.changelog.DatabaseChangeLog
 import liquibase.changelog.IncludeAllFilter
 import liquibase.database.ObjectQuotingStrategy
 import liquibase.exception.ChangeLogParseException
-import liquibase.resource.ResourceAccessor
+import liquibase.resource.FileSystemResourceAccessor
 
 /**
  * This class is the delegate for the {@code databaseChangeLog} element.  It
@@ -35,8 +36,7 @@ class DatabaseChangeLogDelegate {
 	def databaseChangeLog
 	def params
 	def resourceAccessor
-	def liquibaseVersion370Plus = false
-
+	def absoluteResourceAccessor = new FileSystemResourceAccessor(new File("/"))
 
 	DatabaseChangeLogDelegate(databaseChangeLog) {
 		this([:], databaseChangeLog)
@@ -46,15 +46,6 @@ class DatabaseChangeLogDelegate {
 	DatabaseChangeLogDelegate(Map params, databaseChangeLog) {
 		this.params = params
 		this.databaseChangeLog = databaseChangeLog
-		// Liquiabse 3.7.0 introduced breaking changes in the "include" and
-		// "includeAll" methods, so we're using this nasty little hack to
-		// determine which version we're dealing with.  We'll see if the
-		// database change log we've been given responds to the newer method.
-		if ( databaseChangeLog.metaClass.respondsTo(databaseChangeLog, "include",
-				String, boolean, ResourceAccessor, ContextExpression,
-				LabelExpression, Boolean, boolean )) {
-			liquibaseVersion370Plus = true
-		}
 		// It doesn't make sense to expand expressions, since we haven't loaded
 		// properties yet.
 		params.each { key, value ->
@@ -103,7 +94,8 @@ class DatabaseChangeLogDelegate {
 				'filePath',
 				'created',
 				'runOrder',
-				'ignore'
+				'ignore',
+				'runWith'
 		]
 		if (unsupportedKeys.size() > 0) {
 			throw new ChangeLogParseException("ChangeSet '${params.id}': ${unsupportedKeys.toArray()[0]} is not a supported ChangeSet attribute")
@@ -133,6 +125,7 @@ class DatabaseChangeLogDelegate {
 				filePath,
 				DelegateUtil.expandExpressions(params.context, databaseChangeLog),
 				DelegateUtil.expandExpressions(params.dbms, databaseChangeLog),
+				DelegateUtil.expandExpressions(params.runWith, databaseChangeLog),
 				DelegateUtil.parseTruth(params.runInTransaction, true),
 				objectQuotingStrategy,
 				databaseChangeLog)
@@ -162,8 +155,7 @@ class DatabaseChangeLogDelegate {
 		}
 
 		def delegate = new ChangeSetDelegate(changeSet: changeSet,
-				databaseChangeLog: databaseChangeLog,
-				resourceAccessor: resourceAccessor)
+				databaseChangeLog: databaseChangeLog)
 		closure.delegate = delegate
 		closure.resolveStrategy = Closure.DELEGATE_FIRST
 		closure.call()
@@ -177,32 +169,26 @@ class DatabaseChangeLogDelegate {
 	 */
 	void include(Map params = [:]) {
 		// validate parameters.\
-		def unsupportedKeys
-		if ( liquibaseVersion370Plus ) {
-			unsupportedKeys = params.keySet() - ['file', 'relativeToChangelogFile', 'context', 'labels', 'ignore']
-		} else {
-			unsupportedKeys = params.keySet() - ['file', 'relativeToChangelogFile', 'context']
-		}
-		if (unsupportedKeys.size() > 0) {
+		def unsupportedKeys = params.keySet() - ['file', 'relativeToChangelogFile', 'context', 'labels', 'ignore']
+		if ( unsupportedKeys.size() > 0 ) {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'include' element.")
 		}
 
 		def relativeToChangelogFile = DelegateUtil.parseTruth(params.relativeToChangelogFile, false)
+		def absoluteFile = params.file.startsWith('/')
 
 	   	def fileName = databaseChangeLog
 			    .changeLogParameters
 			    .expandExpressions(params.file, databaseChangeLog)
 		def includeContexts = new ContextExpression(params.context)
-		if ( liquibaseVersion370Plus ) {
-			// the new way...
-			def labels = new LabelExpression(params.labels)
-			def ignore = DelegateUtil.parseTruth(params.ignore, false)
-			databaseChangeLog.include(fileName, relativeToChangelogFile, resourceAccessor,
+		def labels = new LabelExpression(params.labels)
+		def ignore = DelegateUtil.parseTruth(params.ignore, false)
+		if ( absoluteFile ) {
+			databaseChangeLog.include(fileName, relativeToChangelogFile, absoluteResourceAccessor,
 					includeContexts, labels, ignore, false)
 		} else {
-			// the old way...
 			databaseChangeLog.include(fileName, relativeToChangelogFile, resourceAccessor,
-					includeContexts, false)
+					includeContexts, labels, ignore, false)
 		}
 	}
 
@@ -211,17 +197,8 @@ class DatabaseChangeLogDelegate {
 	 * @param params
 	 */
 	void includeAll(Map params = [:]) {
-		if (params.containsKey('resourceFilter')) {
-			throw new ChangeLogParseException("Error: the 'includeAll' element no longer supports the 'resourceFilter' attribute.  Please use the 'filter' element instead.")
-		}
-
 		// validate parameters.
-		def unsupportedKeys
-		if ( liquibaseVersion370Plus ) {
-			unsupportedKeys = params.keySet() - ['path', 'relativeToChangelogFile', 'errorIfMissingOrEmpty', 'resourceComparator', 'filter', 'context', 'labels', 'ignore']
-		} else {
-			unsupportedKeys = params.keySet() - ['path', 'relativeToChangelogFile', 'errorIfMissingOrEmpty', 'resourceComparator', 'filter', 'context', 'labels', 'ignore']
-		}
+		def unsupportedKeys = params.keySet() - ['path', 'relativeToChangelogFile', 'errorIfMissingOrEmpty', 'resourceComparator', 'filter', 'context', 'labels', 'ignore']
 		if (unsupportedKeys.size() > 0) {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'includeAll' element.")
 		}
@@ -229,14 +206,8 @@ class DatabaseChangeLogDelegate {
 		def relativeToChangelogFile = DelegateUtil.parseTruth(params.relativeToChangelogFile, false)
 		def errorIfMissingOrEmpty = DelegateUtil.parseTruth(params.errorIfMissingOrEmpty, true)
 		def includeContexts = new ContextExpression(params. context)
-		// The "ignore" flag  is safe to try in all versions of liquibase...
 		def ignore = DelegateUtil.parseTruth(params.ignore, false)
-		// But the labels flags will cause an error if we try to load them in
-		// an older version of liquibase.
-		def labels = null
-		if ( liquibaseVersion370Plus ) {
-			labels = new LabelExpression(params.labels)
-		}
+		def labels = new LabelExpression(params.labels)
 
 		// Set up the resource comparator.  If one is not given, we'll use the
 		// standard one.
@@ -332,16 +303,13 @@ class DatabaseChangeLogDelegate {
 		} else {
 			String propFile = params['file']
 			def props = new Properties()
-			def propertiesStreams = resourceAccessor.getResourcesAsStream(propFile)
-			if (!propertiesStreams) {
+			def stream = resourceAccessor.openStream(null, propFile)
+			if (!stream) {
 				throw new ChangeLogParseException("Unable to load file with properties: ${params['file']}")
-			} else {
-				propertiesStreams.each { stream ->
-					props.load(stream)
-					props.each { k, v ->
-						changeLogParameters.set(k, v, context as ContextExpression, labels as Labels, dbms, global, databaseChangeLog)
-					}
-				}
+			}
+			props.load(stream)
+			props.each { k, v ->
+				changeLogParameters.set(k, v, context as ContextExpression, labels as Labels, dbms, global, databaseChangeLog)
 			}
 		}
 	}
@@ -398,13 +366,16 @@ class DatabaseChangeLogDelegate {
 			}
 
 			String relativeTo = null
+			// If whe're including directories relative to the changelog, we'll
+			// need to tell the ResourceAccessor to use the changelog's path
+			// instead of the working directory's path.
 			if ( isRelativeToChangelogFile ) {
 				relativeTo = databaseChangeLog.getPhysicalFilePath()
 			}
 
 			Set<String> unsortedResources = null;
 			try {
-				unsortedResources = resourceAccessor.list(relativeTo, pathName, true, false, true)
+				unsortedResources = resourceAccessor.list(relativeTo, pathName, true, true, false)
 			} catch (FileNotFoundException e) {
 				if ( errorIfMissingOrEmpty ) {
 					throw e;
@@ -425,23 +396,12 @@ class DatabaseChangeLogDelegate {
 			}
 
 			for ( String resourceName : resources ) {
-				// Liquibase's resource accessor will return files with
-				// absolute paths.  We need to fix this when we were looking
-				// for files in a directory that was relative to the working
-				// directory or to the changeset.  In this case, we want files
-				// that are also relative to the working directory or
-				// the changeset.
-				if ( !pathName.startsWith("classpath") && !pathName.startsWith("/") ) {
-					resourceName = resourceName.substring(resourceName.indexOf(pathName))
-				}
-
-				if ( liquibaseVersion370Plus ) {
-					databaseChangeLog.include(resourceName, isRelativeToChangelogFile, resourceAccessor,
-							includeContexts, labels, ignore, false)
-				} else {
-					databaseChangeLog.include(resourceName, isRelativeToChangelogFile, resourceAccessor,
-							includeContexts, false)
-				}
+				// Liquibase's resource accessor will return files relative to
+				// the working directory, even if we told it to look relative
+				// to the working directory, so force the "relativeToChangelog"
+				// flag to false when we process the resource.
+				databaseChangeLog.include(resourceName, false, resourceAccessor,
+						includeContexts, labels, ignore, false)
 			}
 		} catch (Exception e) {
 			throw new ChangeLogParseException(e)

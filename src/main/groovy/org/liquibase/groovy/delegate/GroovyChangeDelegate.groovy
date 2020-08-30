@@ -18,7 +18,6 @@ package org.liquibase.groovy.delegate
 
 import org.liquibase.groovy.change.GroovyChange
 import liquibase.changelog.ChangeSet
-import liquibase.resource.ResourceAccessor
 import liquibase.database.Database
 import liquibase.database.DatabaseConnection
 import java.sql.Connection
@@ -40,7 +39,6 @@ class GroovyChangeDelegate {
   String checksum
 
   ChangeSet changeSet
-  ResourceAccessor resourceAccessor
   Database database
   DatabaseConnection databaseConnection
   Connection connection
@@ -48,11 +46,8 @@ class GroovyChangeDelegate {
 
 
   GroovyChangeDelegate(Closure groovyChangeClosure,
-                       ChangeSet changeSet,
-                       ResourceAccessor resourceAccessor) {
+                       ChangeSet changeSet) {
     this.changeSet = changeSet
-    this.resourceAccessor = resourceAccessor
-//    change = new GroovyChange(groovyChangeClosure)
   }
 
 

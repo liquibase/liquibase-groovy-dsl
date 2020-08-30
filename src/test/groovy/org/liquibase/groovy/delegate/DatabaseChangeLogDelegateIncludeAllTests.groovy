@@ -33,7 +33,6 @@ import static org.junit.Assert.assertEquals
 import static org.junit.Assert.assertNotNull
 import static org.junit.Assert.assertNull
 import static org.junit.Assert.assertTrue
-import static org.junit.Assert.fail
 
 /**
  * One of three test classes for the {@link DatabaseChangeLogDelegate}.  The
@@ -60,7 +59,13 @@ class DatabaseChangeLogDelegateIncludeAllTests {
 
 	@Before
 	void registerParser() {
-		resourceAccessor = new FileSystemResourceAccessor()
+		// when Liquibase runs, it gives a FileSystemResourceAccessor based on
+		// the absolute path of the current working directory.  We'll do the
+		// same for this test.  We'll make a file for ".", then get that file's
+		// absolute path, which produces something like "/some/path/to/dir/.",
+		// just like what Liquibase does.
+		def f = new File(".")
+		resourceAccessor = new FileSystemResourceAccessor(new File(f.absolutePath))
 		parserFactory = ChangeLogParserFactory.instance
 		ChangeLogParserFactory.getInstance().register(new GroovyLiquibaseChangeLogParser())
 		// make sure we start with clean temporary directories before each test
@@ -105,7 +110,7 @@ databaseChangeLog {
 	/**
 	 * Try including all files in a directory.  For this test, we want 2 files
 	 * to make sure we include them both, and in the right order.  This test
-	 * makes sure that tokens don't affect absolute paths.
+	 * makes sure that tokens don't affect paths.
 	 * <p>
 	 * Note: when other tests throw exceptions, this test may also fail because
 	 * of unclean directories.  Fix the other tests first.
@@ -128,56 +133,7 @@ databaseChangeLog {
   }
 }
 """)
-		// Use an absolute path for the root changelog to prove that we can.
-		def parser = parserFactory.getParser(rootChangeLogFile.absolutePath, resourceAccessor)
-		def rootChangeLog = parser.parse(rootChangeLogFile.absolutePath, new ChangeLogParameters(), resourceAccessor)
 
-		assertNotNull rootChangeLog
-		def changeSets = rootChangeLog.changeSets
-		assertNotNull changeSets
-		assertEquals 3, changeSets.size()
-		assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-		assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-		assertEquals ROOT_CHANGE_SET, changeSets[2].id
-
-		// Make sure we started with an absolute path, then make sure all 3
-		// change sets have absolute paths
-		assertAbsolutePath includedChangeLogDir
-		assertAbsolutePath changeSets[0].filePath
-		assertAbsolutePath changeSets[1].filePath
-		assertAbsolutePath changeSets[2].filePath
-
-		verifyIncludedPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
-	}
-
-	/**
-	 * Try including all files in a directory.  For this test, we want 2 files
-	 * to make sure we include them both, and in the right order.  This test
-	 * does things with absolute paths so we can verify that the DSL preserves
-	 * the absolute paths.
-	 * <p>
-	 * This test will also make sure we can handle contexts properly.
-	 * <p>
-	 * Note: when other tests throw exceptions, this test may also fail because
-	 * of unclean directories.  Fix the other tests first.
-	 */
-	@Test
-	void includeAllAbsolutePath() {
-		def includedChangeLogDir = createIncludedChangeLogFiles()
-
-		def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
-databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${includedChangeLogDir}', context: 'myContext')
-  changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
-    addColumn(tableName: 'monkey') {
-      column(name: 'emotion', type: 'varchar(50)')
-    }
-  }
-}
-""")
 		def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
 		def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
 
@@ -188,22 +144,6 @@ databaseChangeLog {
 		assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
 		assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
 		assertEquals ROOT_CHANGE_SET, changeSets[2].id
-
-		// Make sure we actually started with an absolute path, then check the
-		// the paths of the included change sets.  The first two, which came
-		// from the included file should be are absolute.  The 3rd one, which
-		// came from the root changelog should be relative.
-		assertAbsolutePath includedChangeLogDir
-		assertAbsolutePath changeSets[0].filePath
-		assertAbsolutePath changeSets[1].filePath
-		assertTrue changeSets[2].filePath.startsWith(TMP_CHANGELOG_PATH)
-
-		// Take a look at the contexts of the changes.  The first 2, came from
-		// the included file, and should have contexts.  The 3rd one came from
-		// the root changelog and should not.
-		assertEquals 'myContext', changeSets[0].changeLog.includeContexts.toString()
-		assertEquals 'myContext', changeSets[1].changeLog.includeContexts.toString()
-		assertNull changeSets[2].changeLog.includeContexts
 
 		verifyIncludedPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
 	}
@@ -228,7 +168,7 @@ databaseChangeLog {
   preConditions {
     dbms(type: 'mysql')
   }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}')
+  includeAll(path: '${INCLUDED_CHANGELOG_PATH}', context: 'myContext')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -254,50 +194,12 @@ databaseChangeLog {
 		assertTrue changeSets[1].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
 		assertTrue changeSets[2].filePath.startsWith(TMP_CHANGELOG_PATH)
 
-		verifyIncludedPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
-	}
-
-	/**
-	 * Try including all files in a directory relative to a changelog that uses
-	 * an absolute path. This test is looking at the relativeToChangeLogFile
-	 * parameter.
-	 * <p>
-	 * At the moment, if you start with an absolute changelog, all the included
-	 * changes will have absolute paths, even when they are supposed to be
-	 * relative to the changelog.  This is an internal liquibase issue.  If
-	 * liquibase ever changes how it does things, this test may need to change.
-	 */
-	@Test
-	void includeAllRelativeToAbsoluteChangeLog() {
-		createIncludedChangeLogFiles()
-		def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
-databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: 'include', relativeToChangelogFile: true)
-  changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
-    addColumn(tableName: 'monkey') {
-      column(name: 'emotion', type: 'varchar(50)')
-    }
-  }
-}
-""")
-		// This one is absolute...
-		def parser = parserFactory.getParser(rootChangeLogFile.absolutePath, resourceAccessor)
-		def rootChangeLog = parser.parse(rootChangeLogFile.absolutePath, new ChangeLogParameters(), resourceAccessor)
-
-		assertNotNull rootChangeLog
-		def changeSets = rootChangeLog.changeSets
-		assertNotNull changeSets
-		assertEquals 3, changeSets.size()
-		assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-		assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-		assertEquals ROOT_CHANGE_SET, changeSets[2].id
-
-		assertAbsolutePath changeSets[0].filePath
-		assertAbsolutePath changeSets[1].filePath
-		assertAbsolutePath changeSets[2].filePath
+		// Take a look at the contexts of the changes.  The first 2, came from
+		// the included file, and should have contexts.  The 3rd one came from
+		// the root changelog and should not.
+		assertEquals 'myContext', changeSets[0].changeLog.includeContexts.toString()
+		assertEquals 'myContext', changeSets[1].changeLog.includeContexts.toString()
+		assertNull changeSets[2].changeLog.includeContexts
 
 		verifyIncludedPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
 	}
@@ -931,7 +833,7 @@ databaseChangeLog {
 </databaseChangeLog>
 """)
 
-		return INCLUDED_CHANGELOG_DIR.canonicalPath.replaceAll("\\\\", "/")
+		return INCLUDED_CHANGELOG_DIR.path.replaceAll("\\\\", "/")
 	}
 
 	private File createFileFrom(directory, suffix, text) {
@@ -965,19 +867,6 @@ databaseChangeLog {
 		assertTrue preconditions[2] instanceof PreconditionContainer
 		nested = preconditions[2].nestedPreconditions
 		assertEquals 0, nested.size()
-
-	}
-
-	/**
-	 * Helper method to determine if a given path represents an absolute path.
-	 * If the given path is not an absolute path for the platform, this method
-	 * will fail the test.
-	 * @param path the path to check
-	 */
-	private def assertAbsolutePath(path) {
-		if ( !new File(path).isAbsolute() ) {
-			fail "'${path}' is not an absolute path"
-		}
 
 	}
 }

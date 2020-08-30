@@ -90,7 +90,6 @@ class ChangeSetMethodTests extends ChangeSetTests {
 		assertNotNull changes
 		assertEquals 1, changes.size()
 		assertEquals(new RawSQLChange("DROP TABLE monkey").sql, changes[0].sql)
-		assertNull changes[0].resourceAccessor
 		assertNoOutput()
 	}
 
@@ -113,9 +112,7 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 		assertNotNull changes
 		assertEquals 2, changes.size()
 		assertEquals(new RawSQLChange("UPDATE monkey_table SET emotion='angry' WHERE status='PENDING'").sql, changes[0].sql)
-		assertNull changes[0].resourceAccessor
 		assertEquals(new RawSQLChange("ALTER TABLE monkey_table DROP COLUMN angry").sql, changes[1].sql)
-		assertNull changes[1].resourceAccessor
 		assertNoOutput()
 	}
 
@@ -138,7 +135,6 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 		assertNotNull changes
 		assertEquals 1, changes.size()
 		assertEquals(new RawSQLChange("UPDATE monkey_table SET emotion='angry' WHERE status='PENDING'").sql, changes[0].sql)
-		assertNull changes[0].resourceAccessor
 		assertNoOutput()
 	}
 
@@ -162,9 +158,7 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 		assertNotNull changes
 		assertEquals 2, changes.size()
 		assertEquals(new RawSQLChange("UPDATE monkey_table SET emotion='angry' WHERE status='PENDING'").sql, changes[0].sql)
-		assertNull changes[0].resourceAccessor
 		assertEquals(new RawSQLChange("ALTER TABLE monkey_table DROP COLUMN angry").sql, changes[1].sql)
-		assertNull changes[1].resourceAccessor
 		assertNoOutput()
 	}
 
@@ -185,7 +179,6 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 		assertEquals 1, changes.size()
 		assertTrue changes[0] instanceof DeleteDataChange
 		assertEquals 'monkey', changes[0].tableName
-		assertNotNull changes[0].resourceAccessor
 		assertNoOutput()
 	}
 
@@ -211,11 +204,9 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 		assertEquals 2, changes.size()
 		assertTrue changes[0] instanceof UpdateDataChange
 		assertEquals 'monkey', changes[0].tableName
-		assertNotNull changes[0].resourceAccessor
 		assertTrue changes[1] instanceof DropColumnChange
 		assertEquals 'monkey', changes[1].tableName
 		assertEquals 'emotion', changes[1].columnName
-		assertNotNull changes[1].resourceAccessor
 		assertNoOutput()
 	}
 
@@ -242,9 +233,7 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 		assertEquals 2, changes.size()
 		assertTrue changes[0] instanceof UpdateDataChange
 		assertEquals 'monkey', changes[0].tableName
-		assertNotNull changes[0].resourceAccessor
 		assertEquals(new RawSQLChange("ALTER TABLE monkey_table DROP COLUMN angry").sql, changes[1].sql)
-		assertNull changes[1].resourceAccessor
 		assertNoOutput()
 	}
 
@@ -306,7 +295,6 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 		assertEquals 1, changes.size()
 		assertTrue changes[0] instanceof AddColumnChange
 		assertEquals 'monkey', changes[0].tableName
-		assertNotNull changes[0].resourceAccessor
 		assertNoOutput()
 	}
 
@@ -332,7 +320,6 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 		assertEquals 1, changes.size()
 		assertTrue changes[0] instanceof AddColumnChange
 		assertEquals 'monkey', changes[0].tableName
-		assertNotNull changes[0].resourceAccessor
 		assertNoOutput()
 	}
 

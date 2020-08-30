@@ -1,3 +1,10 @@
+Changes for 3.0.0
+=================
+- Added support for Liquibase 4.0.0, which breaks support for Liquibase 3.x.
+  This introduces one breaking change to the Groovy DSL.  Liquibase no longer
+  supports including changelogs via an absolute path, so that support has been
+  removed from the Groovy DSL as well. 
+  
 Changes for 2.1.2
 =================
 - Verified that everything still works in Liquibase 3.10.0

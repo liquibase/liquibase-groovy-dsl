@@ -17,7 +17,7 @@
 package org.liquibase.groovy.delegate
 
 import liquibase.exception.ChangeLogParseException
-import liquibase.ext.ExtensionChange
+import org.liquibase.groovy.helper.ExtensionChange
 
 import static org.junit.Assert.*
 import liquibase.change.core.RawSQLChange

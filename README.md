@@ -9,6 +9,22 @@ project was started once upon a time by Tim Berglund, and is currently
 maintained by Steve Saliman.
 
 ## News
+### August 30, 2020
+Liquibase 4.0.0, has been released, with changes that break the Liquibse Groovy
+DSL.  A new version of the DSL is in development to address those changes. The
+latest 3.0.0-SNAPSHOT version of the new DSL has been published to the Maven
+Snapshot Repository, and appears to be working well.  To use the The snapshot
+repository, just add 
+`maven { url "http://oss.sonatype.org/content/repositories/snapshots" }` to
+the `repositories` block of our build file.  I expect to relase a production 
+version soon.
+
+There is one known breaking change in the new version of the DSL.  Liquibase
+no longer supports using absolute filenemes, so the DSL doesn't either.  This
+change only affects `include` and `includeAll` elements of a changelog that
+were using absolute paths.
+
+ 
 ### June 6, 2020
 Release 2.1.2 is a minor release that fixes an issue with `include` 
 and `includeAll` changes nested inside change logs that used the previously

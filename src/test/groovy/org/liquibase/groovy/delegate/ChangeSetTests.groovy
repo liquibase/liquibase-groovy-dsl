@@ -98,7 +98,6 @@ class ChangeSetTests {
 		changelog.changeLogParameters.set('database.typeName', 'mysql')
 
 		closure.delegate = new ChangeSetDelegate(changeSet: changeSet,
-						resourceAccessor: resourceAccessor,
 						databaseChangeLog: changelog)
 		closure.call()
 		changeSet
