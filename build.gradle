@@ -23,7 +23,7 @@ sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 // Release version that won't conflict with the bintray plugin
-def releaseVersion = '3.0.0-SNAPSHOT'
+def releaseVersion = '3.0.0'
 group = 'org.liquibase'
 archivesBaseName = 'liquibase-groovy-dsl'
 version = releaseVersion
@@ -49,18 +49,6 @@ dependencies {
 	// This seems redundant, but it isn't.  We need compileOnly so that the main
 	// classes will compile, but that dependency doesn't transfer to the unit
 	// tests, so we also need testCompile.
-	// compileOnly 'org.liquibase:liquibase-core:3.4.2'
-	// testCompile 'org.liquibase:liquibase-core:3.4.2'
-//  compileOnly 'org.liquibase:liquibase-core:3.6.1'
-//  testCompile 'org.liquibase:liquibase-core:3.6.1'
-//  compileOnly 'org.liquibase:liquibase-core:3.7.0'
-//  testCompile 'org.liquibase:liquibase-core:3.7.0'
-//  compileOnly 'org.liquibase:liquibase-core:3.8.0'
-//  testCompile 'org.liquibase:liquibase-core:3.8.0'
-//  compileOnly 'org.liquibase:liquibase-core:3.8.1-SNAPSHOT'
-//  testCompile 'org.liquibase:liquibase-core:3.8.1-SNAPSHOT'
-//  compileOnly 'org.liquibase:liquibase-core:3.8.10-local-SNAPSHOT'
-//  testCompile 'org.liquibase:liquibase-core:3.8.10-local-SNAPSHOT'
 //	compileOnly 'org.liquibase:liquibase-core:3.10.0-local-SNAPSHOT'
 //	testCompile 'org.liquibase:liquibase-core:3.10.0-local-SNAPSHOT'
 //	compileOnly 'org.liquibase:liquibase-core:3.10.2'
