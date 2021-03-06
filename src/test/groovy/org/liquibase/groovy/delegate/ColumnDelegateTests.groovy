@@ -402,7 +402,8 @@ class ColumnDelegateTests {
 					remarks: 'No comment',
 					descending: false,
 			        header: 'columnHeader',
-			        index: 5
+			        index: 5,
+			        allowUpdate: false
 			)
 		}
 
@@ -437,6 +438,7 @@ class ColumnDelegateTests {
 		assertFalse delegate.columns[0].descending
 		assertEquals 'columnHeader', delegate.columns[0].header
 		assertEquals 5, delegate.columns[0].index
+		assertFalse delegate.columns[0].allowUpdate
 		assertNull delegate.columns[0].constraints
 	}
 

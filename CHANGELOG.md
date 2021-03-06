@@ -1,3 +1,8 @@
+Changes for 3.0.1
+=================
+- Added support for Liquibase 4.2's new `allowUpdate` attribute of a column
+  inside a `loadupdateData` change.
+  
 Changes for 3.0.0
 =================
 - Added support for Liquibase 4.0.0, which breaks support for Liquibase 3.x.
