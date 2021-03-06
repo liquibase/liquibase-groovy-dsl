@@ -516,6 +516,7 @@ class ReferentialIntegrityRefactoringTests extends ChangeSetTests {
 		assertNull changes[0].schemaName
 		assertNull changes[0].tableName
 		assertNull changes[0].constraintName
+		assertNull changes[0].dropIndex
 		assertNotNull changes[0].resourceAccessor
 		assertNoOutput()
 	}
@@ -530,7 +531,8 @@ class ReferentialIntegrityRefactoringTests extends ChangeSetTests {
 					catalogName: 'catalog',
 					schemaName: 'schema',
 					tableName: 'monkey',
-					constraintName: 'pk_monkey')
+					constraintName: 'pk_monkey',
+			        dropIndex: true)
 		}
 
 		assertEquals 0, changeSet.rollback.changes.size()
@@ -542,6 +544,7 @@ class ReferentialIntegrityRefactoringTests extends ChangeSetTests {
 		assertEquals 'schema', changes[0].schemaName
 		assertEquals 'monkey', changes[0].tableName
 		assertEquals 'pk_monkey', changes[0].constraintName
+		assertTrue changes[0].dropIndex
 		assertNotNull changes[0].resourceAccessor
 		assertNoOutput()
 	}

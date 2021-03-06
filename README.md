@@ -10,7 +10,7 @@ maintained by Steve Saliman.
 
 ## News
 ### December 14, 2020
-Version 3.0.1 of the Liquibase Groovy DSL is no available with support for 
+Version 3.0.1 of the Liquibase Groovy DSL is now available with support for 
 Liquibase 4.2.2.
 
 ### September 5, 2020

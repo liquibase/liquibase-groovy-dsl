@@ -267,7 +267,7 @@ databaseChangeLog(logicalFilePath: '.') {
 
 
   changeSet(id: 'drop-primary-key', author: 'stevesaliman') {
-    dropPrimaryKey(schemaName: 'animal', tableName: 'monkey_table', constraintName: 'monkey_pk')
+    dropPrimaryKey(schemaName: 'animal', tableName: 'monkey_table', constraintName: 'monkey_pk', dropIndex: true)
   }
 
 
