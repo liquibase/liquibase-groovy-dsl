@@ -215,7 +215,10 @@ databaseChangeLog()
 	 */
 	@Test
 	void changeSetFull() {
-		def changeLog = buildChangeLog {
+		def params = new ChangeLogParameters()
+		params.set('myParam', 'myValue')
+
+		def changeLog = buildChangeLog(params) {
 			changeSet(id: 'monkey-change',
 					  author: 'stevesaliman',
 					  dbms: 'mysql',
@@ -238,22 +241,32 @@ databaseChangeLog()
 
 		assertNotNull changeLog.changeSets
 		assertEquals 1, changeLog.changeSets.size()
-		assertEquals 'monkey-change', changeLog.changeSets[0].id
-		assertEquals 'stevesaliman', changeLog.changeSets[0].author
-		assertTrue changeLog.changeSets[0].alwaysRun // the property doesn't match xml or docs.
-		assertTrue changeLog.changeSets[0].runOnChange
-		assertEquals 'file_path', changeLog.changeSets[0].filePath
-		assertEquals 'testing', changeLog.changeSets[0].contexts.contexts.toArray()[0]
-		assertEquals 'test_label', changeLog.changeSets[0].labels.toString()
-		assertEquals 'mysql', changeLog.changeSets[0].dbmsSet.toArray()[0]
-		assertFalse changeLog.changeSets[0].runInTransaction
-		assertTrue changeLog.changeSets[0].failOnError
-		assertEquals "MARK_RAN", changeLog.changeSets[0].onValidationFail.toString()
-		assertEquals ObjectQuotingStrategy.QUOTE_ONLY_RESERVED_WORDS, changeLog.changeSets[0].objectQuotingStrategy
-		assertEquals 'test_created', changeLog.changeSets[0].created
-		assertEquals 'last', changeLog.changeSets[0].runOrder
-		assertTrue changeLog.changeSets[0].ignore
-		assertEquals 'my_executor', changeLog.changeSets[0].runWith
+		def changeSet = changeLog.changeSets[0]
+		assertEquals 'monkey-change', changeSet.id
+		assertEquals 'stevesaliman', changeSet.author
+		assertTrue changeSet.alwaysRun // the property doesn't match xml or docs.
+		assertTrue changeSet.runOnChange
+		assertEquals 'file_path', changeSet.filePath
+		assertEquals 'testing', changeSet.contexts.contexts.toArray()[0]
+		assertEquals 'test_label', changeSet.labels.toString()
+		assertEquals 'mysql', changeSet.dbmsSet.toArray()[0]
+		assertFalse changeSet.runInTransaction
+		assertTrue changeSet.failOnError
+		assertEquals "MARK_RAN", changeSet.onValidationFail.toString()
+		assertEquals ObjectQuotingStrategy.QUOTE_ONLY_RESERVED_WORDS, changeSet.objectQuotingStrategy
+		assertEquals 'test_created', changeSet.created
+		assertEquals 'last', changeSet.runOrder
+		assertTrue changeSet.ignore
+		assertEquals 'my_executor', changeSet.runWith
+
+		// Did the changeset get the parameters?
+		def changeLogParameters = changeSet.changeLogParameters
+		Field f = changeLogParameters.getClass().getDeclaredField("changeLogParameters")
+		f.setAccessible(true)
+		def changeSetParams = f.get(changeLogParameters)
+		def param = changeSetParams[changeSetParams.size()-1] // The last one is ours.
+		assertEquals 'myParam', param.key
+		assertEquals 'myValue', param.value
 	}
 
 	/**
@@ -437,7 +450,7 @@ databaseChangeLog()
 		}
 
 		// change log parameters are not exposed through the API, so get them
-		// using reflection.  Also, there are
+		// using reflection.
 		def changeLogParameters = changeLog.changeLogParameters
 		Field f = changeLogParameters.getClass().getDeclaredField("changeLogParameters")
 		f.setAccessible(true)
@@ -599,8 +612,29 @@ emotion=angry
 	 * @return the changeSet, with parsed changes from the closure added.
 	 */
 	private def buildChangeLog(Closure closure) {
+//		def changelog = new DatabaseChangeLog(ROOT_CHANGELOG_PATH)
+//		changelog.changeLogParameters = new ChangeLogParameters()
+//		closure.delegate = new DatabaseChangeLogDelegate(changelog)
+//		closure.delegate.resourceAccessor = resourceAccessor
+//		closure.resolveStrategy = Closure.DELEGATE_FIRST
+//		closure.call()
+//		return changelog
+		return buildChangeLog(null, closure)
+	}
+
+	/**
+	 * Helper method that builds a changeSet from the given closure.  Tests will
+	 * use this to test parsing the various closures that make up the Groovy DSL.
+	 * @param closure the closure containing changes to parse.
+	 * @return the changeSet, with parsed changes from the closure added.
+	 */
+	private def buildChangeLog(ChangeLogParameters parameters, Closure closure) {
 		def changelog = new DatabaseChangeLog(ROOT_CHANGELOG_PATH)
-		changelog.changeLogParameters = new ChangeLogParameters()
+		if ( parameters == null ) {
+			changelog.changeLogParameters = new ChangeLogParameters()
+		} else {
+			changelog.changeLogParameters = parameters
+		}
 		closure.delegate = new DatabaseChangeLogDelegate(changelog)
 		closure.delegate.resourceAccessor = resourceAccessor
 		closure.resolveStrategy = Closure.DELEGATE_FIRST

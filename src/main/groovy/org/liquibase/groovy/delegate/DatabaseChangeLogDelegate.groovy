@@ -20,7 +20,6 @@ import liquibase.ContextExpression
 import liquibase.LabelExpression
 import liquibase.Labels
 import liquibase.changelog.ChangeSet
-import liquibase.changelog.DatabaseChangeLog
 import liquibase.changelog.IncludeAllFilter
 import liquibase.database.ObjectQuotingStrategy
 import liquibase.exception.ChangeLogParseException
@@ -129,6 +128,8 @@ class DatabaseChangeLogDelegate {
 				DelegateUtil.parseTruth(params.runInTransaction, true),
 				objectQuotingStrategy,
 				databaseChangeLog)
+
+		changeSet.changeLogParameters = databaseChangeLog.changeLogParameters
 
 		if ( params.containsKey('failOnError') ) {
 			changeSet.failOnError = DelegateUtil.parseTruth(params.failOnError, false)

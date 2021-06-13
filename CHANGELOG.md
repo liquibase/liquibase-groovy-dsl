@@ -1,3 +1,8 @@
+Changes for 3.0.2
+=================
+- Fixed #50, which prevented changelog parameters from being passed into the 
+  change sets.
+   
 Changes for 3.0.1
 =================
 - Added support for Liquibase 4.2's new `allowUpdate` attribute of a column

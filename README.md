@@ -9,6 +9,9 @@ project was started once upon a time by Tim Berglund, and is currently
 maintained by Steve Saliman.
 
 ## News
+### June 12, 2021
+Fixed a bug with change log parameters (#50)
+
 ### April 16, 2021
 Version 3.0.1 of the Liquibase Groovy DSL is now available with support for 
 Liquibase 4.2.2.
