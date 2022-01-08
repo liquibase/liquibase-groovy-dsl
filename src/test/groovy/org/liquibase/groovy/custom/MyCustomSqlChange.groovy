@@ -1,17 +1,15 @@
 /*
- * Copyright 2011-2020 Tim Berglund and Steven C. Saliman
+ * Copyright 2011-2022 Tim Berglund and Steven C. Saliman
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.  You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  */
 package org.liquibase.groovy.custom
 
@@ -23,31 +21,28 @@ import liquibase.statement.SqlStatement
 import liquibase.statement.core.RawSqlStatement
 
 /**
- * A trivial liquibase CustomSqlChange that will be added to the DSL
- * through groovy metaprogramming
+ * A trivial liquibase CustomSqlChange that will be added to the DSL through groovy metaprogramming
  *
  * @see groovy.runtime.metaclass.org.liquibase.groovy.delegate.ChangeSetDelegateMetaClass
- * @author Jason Clawson
  */
-class MyCustomSqlChange
-  implements CustomSqlChange {
+class MyCustomSqlChange implements CustomSqlChange {
 
-  String getConfirmationMessage() {
-    return 'confirmation message here'
-  }
+    String getConfirmationMessage() {
+        return 'confirmation message here'
+    }
 
-  void setUp() {
-  }
+    void setUp() {
+    }
 
-  void setFileOpener(ResourceAccessor resourceAccessor) {
-  }
+    void setFileOpener(ResourceAccessor resourceAccessor) {
+    }
 
-  ValidationErrors validate(Database database) {
-    new ValidationErrors()
-  }
+    ValidationErrors validate(Database database) {
+        new ValidationErrors()
+    }
 
-  SqlStatement[] generateStatements(Database database) {
-    [ new RawSqlStatement("SELECT * FROM monkey") ]
-  }
+    SqlStatement[] generateStatements(Database database) {
+        [new RawSqlStatement("SELECT * FROM monkey")]
+    }
 
 }

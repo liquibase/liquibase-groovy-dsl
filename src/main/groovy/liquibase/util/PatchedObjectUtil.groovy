@@ -1,17 +1,15 @@
 /*
- * Copyright 2011-2020 Tim Berglund and Steven C. Saliman
+ * Copyright 2011-2022 Tim Berglund and Steven C. Saliman
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.  You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  */
 package liquibase.util;
 
@@ -29,10 +27,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * This class is a copy of the ObjectUtil class in Liquibase itself, but patched
- * to work with the Groovy DSL.  This is a short term hack until Liquibase
- * ParsedNode parsing properly rejects invalid nodes with an error instead of
- * silently ignoring them.  See
+ * This class is a copy of the ObjectUtil class in Liquibase itself, but patched to work with the
+ * Groovy DSL.  This is a short term hack until Liquibase ParsedNode parsing properly rejects
+ * invalid nodes with an error instead of silently ignoring them.  See
  * https://liquibase.jira.com/browse/CORE-1968?focusedCommentId=24201#comment-24201
  * for mor information.
  *
@@ -45,7 +42,7 @@ class PatchedObjectUtil {
 
     static Object getProperty(Object object, String propertyName) throws IllegalAccessException, InvocationTargetException {
         Method readMethod = getReadMethod(object, propertyName);
-        if (readMethod == null) {
+        if ( readMethod == null ) {
             throw new UnexpectedLiquibaseException("Property '" + propertyName + "' not found on object type " + object.getClass().getName());
         }
 
@@ -66,27 +63,27 @@ class PatchedObjectUtil {
 
     static void setProperty(Object object, String propertyName, String propertyValue) {
         Method method = getWriteMethod(object, propertyName);
-        if (method == null) {
+        if ( method == null ) {
             throw new UnexpectedLiquibaseException("Property '" + propertyName + "' not found on object type " + object.getClass().getName());
         }
 
         Class<?> parameterType = method.getParameterTypes()[0];
         Object finalValue = propertyValue;
-        if (parameterType.equals(Boolean.class) || parameterType.equals(boolean.class)) {
+        if ( parameterType.equals(Boolean.class) || parameterType.equals(boolean.class) ) {
             finalValue = Boolean.valueOf(propertyValue);
-        } else if (parameterType.equals(Integer.class)) {
+        } else if ( parameterType.equals(Integer.class) ) {
             finalValue = Integer.valueOf(propertyValue);
-        } else if (parameterType.equals(Long.class)) {
+        } else if ( parameterType.equals(Long.class) ) {
             finalValue = Long.valueOf(propertyValue);
-        } else if (parameterType.equals(BigInteger.class)) {
+        } else if ( parameterType.equals(BigInteger.class) ) {
             finalValue = new BigInteger(propertyValue);
-        } else if (parameterType.equals(DatabaseFunction.class)) {
+        } else if ( parameterType.equals(DatabaseFunction.class) ) {
             finalValue = new DatabaseFunction(propertyValue);
-        } else if (parameterType.equals(SequenceNextValueFunction.class)) {
+        } else if ( parameterType.equals(SequenceNextValueFunction.class) ) {
             finalValue = new SequenceNextValueFunction(propertyValue);
-        } else if (parameterType.equals(SequenceCurrentValueFunction.class)) {
+        } else if ( parameterType.equals(SequenceCurrentValueFunction.class) ) {
             finalValue = new SequenceCurrentValueFunction(propertyValue);
-        } else if (Enum.class.isAssignableFrom(parameterType)) {
+        } else if ( Enum.class.isAssignableFrom(parameterType) ) {
             finalValue = Enum.valueOf((Class<Enum>) parameterType, propertyValue);
         }
         try {
@@ -94,7 +91,7 @@ class PatchedObjectUtil {
         } catch (IllegalAccessException e) {
             throw new UnexpectedLiquibaseException(e);
         } catch (IllegalArgumentException e) {
-            throw new UnexpectedLiquibaseException("Cannot call "+method.toString()+" with value of type "+finalValue.getClass().getName());
+            throw new UnexpectedLiquibaseException("Cannot call " + method.toString() + " with value of type " + finalValue.getClass().getName());
         } catch (InvocationTargetException e) {
             throw new UnexpectedLiquibaseException(e);
         }
@@ -106,8 +103,8 @@ class PatchedObjectUtil {
 
         Method[] methods = getMethods(object);
 
-        for (Method method : methods) {
-            if ((method.getName().equals(getMethodName) || method.getName().equals(isMethodName)) && method.getParameterTypes().length == 0) {
+        for ( Method method : methods ) {
+            if ( (method.getName().equals(getMethodName) || method.getName().equals(isMethodName)) && method.getParameterTypes().length == 0 ) {
                 return method;
             }
         }
@@ -117,36 +114,33 @@ class PatchedObjectUtil {
     private static Method getWriteMethod(Object object, String propertyName) {
         String methodName = "set" + propertyName.substring(0, 1).toUpperCase(Locale.ENGLISH) + propertyName.substring(1);
         String alternateName = "should" + propertyName.substring(0, 1).toUpperCase(Locale.ENGLISH) + propertyName.substring(1);
-        // Another ugly hack courtesy of the Liquibase 3.7.0 code.  It added
-        // some new attributes to the ConstraintsConfig class that don't have
-        // proper accessors.
+        // Another ugly hack courtesy of the Liquibase 3.7.0 code.  It added some new attributes to
+        // the ConstraintsConfig class that don't have proper accessors.
         Method[] methods = getMethods(object);
 
-        for (Method method : methods) {
-            if ( (method.getName().equals(methodName) || method.getName().equals(alternateName)) && method.getParameterTypes().length == 1) {
-              // This is where the patch is.  The Liquibase version of this
-	            // method simply returns the first one arg method that it finds.
-	            // The patched one returns the first one that has an argument type
-	            // we can use. We need a special little bit of logic for the
-	            // ForeignKeyConstraintType enum because it's string doesn't
-	            // match the enum constant.  The AddForiegnKeyConstraintChange
-	            // class has 2 different one-arg setters for onDelete and onUpdate
-	            // but you never know which one you will get on any given run,
-	            // so force the String one.  Basically, we allow any enum EXCEPT
-	            // our problematic ForeignKeyConstraintType
-	            Class<?> c = method.getParameterTypes()[0];
-	            if ( c.equals(Boolean.class) ||
-					            c.equals(boolean.class) ||
-					            c.equals(Integer.class) ||
-					            c.equals(Long.class) ||
-					            c.equals(BigInteger.class) ||
-					            c.equals(DatabaseFunction.class) ||
-					            c.equals(SequenceNextValueFunction.class) ||
-					            c.equals(SequenceCurrentValueFunction.class) ||
-					            c.equals(String.class) ||
-					            (Enum.class.isAssignableFrom(c)) && !c.equals(ForeignKeyConstraintType.class)) {
-		              return method;
-	            }
+        for ( Method method : methods ) {
+            if ( (method.getName().equals(methodName) || method.getName().equals(alternateName)) && method.getParameterTypes().length == 1 ) {
+                // This is where the patch is.  The Liquibase version of this method simply returns
+                // the first one arg method that it finds.  The patched one returns the first one
+                // that has an argument type we can use. We need a special little bit of logic for
+                // the ForeignKeyConstraintType enum because it's string doesn't match the enum
+                // constant.  The AddForiegnKeyConstraintChange class has 2 different one-arg
+                // setters for onDelete and onUpdate but you never know which one you will get on
+                // any given run, so force the String one.  Basically, we allow any enum EXCEPT
+                // our problematic ForeignKeyConstraintType
+                Class<?> c = method.getParameterTypes()[0];
+                if ( c.equals(Boolean.class) ||
+                        c.equals(boolean.class) ||
+                        c.equals(Integer.class) ||
+                        c.equals(Long.class) ||
+                        c.equals(BigInteger.class) ||
+                        c.equals(DatabaseFunction.class) ||
+                        c.equals(SequenceNextValueFunction.class) ||
+                        c.equals(SequenceCurrentValueFunction.class) ||
+                        c.equals(String.class) ||
+                        (Enum.class.isAssignableFrom(c)) && !c.equals(ForeignKeyConstraintType.class) ) {
+                    return method;
+                }
             }
         }
         return null;
@@ -155,7 +149,7 @@ class PatchedObjectUtil {
     private static Method[] getMethods(Object object) {
         Method[] methods = methodCache.get(object.getClass());
 
-        if (methods == null) {
+        if ( methods == null ) {
             methods = object.getClass().getMethods();
             methodCache.put(object.getClass(), methods);
         }

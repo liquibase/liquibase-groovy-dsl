@@ -3,15 +3,15 @@
     <!-- Several tests examine stdout to check for DSL output.  By default,
          Liquibase logs to stdout, which causes tests to fail.  We'll fix
          this by moving logback to STDERR -->
-      <target>System.err</target>
-      <encoder>
-        <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-      </encoder>
-    </appender>
+    <target>System.err</target>
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
 
-    <!-- We don't generally care about Liquibase logging when we're testing
-         the DSL. -->
-    <root level="info">
-      <appender-ref ref="STDERR" />
-    </root>
-  </configuration>
+  <!-- We don't generally care about Liquibase logging when we're testing
+       the DSL. -->
+  <root level="info">
+    <appender-ref ref="STDERR"/>
+  </root>
+</configuration>

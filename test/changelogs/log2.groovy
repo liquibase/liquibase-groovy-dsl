@@ -1,3 +1,3 @@
 databaseChangeLog() {
-  println "LOG 2"
+    println "LOG 2"
 }

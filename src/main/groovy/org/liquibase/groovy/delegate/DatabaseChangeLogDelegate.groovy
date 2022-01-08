@@ -1,17 +1,15 @@
 /*
- * Copyright 2011-2020 Tim Berglund and Steven C. Saliman
+ * Copyright 2011-2022 Tim Berglund and Steven C. Saliman
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.  You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  */
 
 package org.liquibase.groovy.delegate
@@ -26,8 +24,8 @@ import liquibase.exception.ChangeLogParseException
 import liquibase.resource.FileSystemResourceAccessor
 
 /**
- * This class is the delegate for the {@code databaseChangeLog} element.  It
- * is the starting point for parsing the Groovy DSL.
+ * This class is the delegate for the {@code databaseChangeLog} element.  It is the starting point
+ * for parsing the Groovy DSL.
  *
  * @author Steven C. Saliman
  */
@@ -45,12 +43,10 @@ class DatabaseChangeLogDelegate {
 	DatabaseChangeLogDelegate(Map params, databaseChangeLog) {
 		this.params = params
 		this.databaseChangeLog = databaseChangeLog
-		// It doesn't make sense to expand expressions, since we haven't loaded
-		// properties yet.
+		// It doesn't make sense to expand expressions, since we haven't loaded properties yet.
 		params.each { key, value ->
-			// The context attribute needs a little work.  The value needs to
-			// be converted into an object, and the DatabaseChangelog has
-			// an attribute named "contexts"
+			// The context attribute needs a little work.  The value needs to be converted into an
+            // object, and the DatabaseChangelog has an attribute named "contexts"
 			if ( key.equals("context") ) {
 				key = "contexts"
 				value = new ContextExpression(value) {}
@@ -62,17 +58,16 @@ class DatabaseChangeLogDelegate {
 	/**
 	 * Parse a changeSet and add it to the change log.
 	 * @param params the attributes of the change set.
-	 * @param closure the closure containing, among other things, all the
-	 * refactoring changes the change set should make.
+	 * @param closure the closure containing, among other things, all the refactoring changes the
+     *        change set should make.
 	 */
 	void changeSet(Map params, closure) {
-		// Most of the time, we just pass any parameters through to a newly created
-		// Liquibase object, but we need to do things a little differently for a
-		// ChangeSet because the Liquibase object does not have setters for its
-		// properties. We'll need to figure it all out for the constructor.
-		// We want to warn people if they try to pass in something that is not
-		// supported because we don't want to silently ignore things, so first get
-		// a list of unsupported keys.
+		// Most of the time, we just pass any parameters through to a newly created Liquibase
+        // object, but we need to do things a little differently for a ChangeSet because the
+        // Liquibase object does not have setters for its properties. We'll need to figure it all
+        // out for the constructor.  We want to warn people if they try to pass in something that is
+        // not supported because we don't want to silently ignore things, so first get a list of
+        // unsupported keys.
 		if (params.containsKey('alwaysRun')) {
 			throw new ChangeLogParseException("Error: ChangeSet '${params.id}': the alwaysRun attribute of a changeSet has been removed.  Please use 'runAlways' instead.")
 		}
