@@ -126,7 +126,7 @@ class GroovyLiquibaseChangeLogParser implements ChangeLogParser {
 
         delegate.resourceAccessor = resourceAccessor
         closure.delegate = delegate
-        closure.resolveStrategy = Closure.OWNER_FIRST
+        closure.resolveStrategy = Closure.DELEGATE_FIRST
         closure.call()
     }
 }
