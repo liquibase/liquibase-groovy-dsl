@@ -37,16 +37,16 @@ repositories {
 
 
 dependencies {
-	compile "org.codehaus.groovy:groovy:${groovyVersion}"
-	compile "org.codehaus.groovy:groovy-sql:${groovyVersion}"
+	implementation "org.codehaus.groovy:groovy:${groovyVersion}"
+    implementation "org.codehaus.groovy:groovy-sql:${groovyVersion}"
 	// This seems redundant, but it isn't.  We need compileOnly so that the main classes will
     // compile, but that dependency doesn't transfer to the unit tests, so we also need
     // testCompile.
 	compileOnly "org.liquibase:liquibase-core:${liquibaseVersion}"
-	testCompile "org.liquibase:liquibase-core:${liquibaseVersion}"
-	testCompile "junit:junit:${junitVersion}"
-	testRuntime "com.h2database:h2:${h2Version}"
-	testRuntime "ch.qos.logback:logback-classic:${logbackVersion}"
+	testImplementation "org.liquibase:liquibase-core:${liquibaseVersion}"
+    testImplementation "junit:junit:${junitVersion}"
+	testRuntimeOnly "com.h2database:h2:${h2Version}"
+    testRuntimeOnly "ch.qos.logback:logback-classic:${logbackVersion}"
 	archives "org.apache.maven.wagon:wagon-ssh:${wagonVersion}"
 	archives "org.apache.maven.wagon:wagon-ssh-external:${wagonVersion}"
 }
