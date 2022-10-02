@@ -43,7 +43,7 @@ class ModifySqlDelegate {
 
         // params are optional
         if ( params != null ) {
-            def unsupportedKeys = params.keySet() - ['dbms', 'context', 'labels', 'applyToRollback']
+            def unsupportedKeys = params.keySet() - ['dbms', 'context', 'contextFilter', 'labels', 'applyToRollback']
             if ( unsupportedKeys.size() > 0 ) {
                 throw new ChangeLogParseException("ChangeSet '${changeSet.id}':  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'modifySql' element.")
             }
@@ -53,9 +53,10 @@ class ModifySqlDelegate {
                 def value = DelegateUtil.expandExpressions(params.dbms, changeSet.changeLog)
                 modifySqlDbmsList = value.replaceAll(" ", "").split(',') as Set
             }
-            if ( params.context ) {
+            if ( params.contextFilter || params.context ) {
                 // expand expressions, then split into a list.
-                def value = DelegateUtil.expandExpressions(params.context, changeSet.changeLog)
+                def context = params.contextFilter? params.contextFilter : params.context
+                def value = DelegateUtil.expandExpressions(context, changeSet.changeLog)
                 modifySqlContexts = new ContextExpression(value as String)
             }
             if ( params.labels ) {

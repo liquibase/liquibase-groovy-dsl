@@ -18,6 +18,7 @@ import liquibase.changelog.DatabaseChangeLog
 import liquibase.exception.ChangeLogParseException
 import liquibase.parser.ChangeLogParserFactory
 import liquibase.parser.ext.GroovyLiquibaseChangeLogParser
+import liquibase.precondition.Precondition
 import liquibase.precondition.core.DBMSPrecondition
 import liquibase.precondition.core.PreconditionContainer
 import liquibase.precondition.core.RunningAsPrecondition
@@ -140,7 +141,7 @@ databaseChangeLog {
         assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
         assertEquals ROOT_CHANGE_SET, changeSets[2].id
 
-        verifyIncludedPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
+        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
@@ -149,9 +150,11 @@ databaseChangeLog {
      * can verify that the DSL preserves the relative paths instead of converting them to absolute
      * paths.
      * <p>
-     * This test will also make sure we can handle contexts properly. <p> Note: when other tests
-     * throw exceptions, this test may also fail because of unclean directories.  Fix the other
-     * tests first.
+     * This test will also make sure we can handle contextFilters properly, by setting both a
+     * contextFilter and a context to make sure we get the contextFilter
+     * <p>
+     * Note: when other tests throw exceptions, this test may also fail because of unclean
+     * directories.  Fix the other tests first.
      */
     @Test
     void includeAllRelativeToWorkDir() {
@@ -162,7 +165,7 @@ databaseChangeLog {
   preConditions {
     dbms(type: 'mysql')
   }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}', context: 'myContext')
+  includeAll(path: '${INCLUDED_CHANGELOG_PATH}', context: 'override', contextFilter: 'myContext')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -189,16 +192,17 @@ databaseChangeLog {
 
         // Take a look at the contexts of the changes.  The first 2, came from the included file,
         // and should have contexts.  The 3rd one came from the root changelog and should not.
-        assertEquals 'myContext', changeSets[0].changeLog.includeContexts.toString()
-        assertEquals 'myContext', changeSets[1].changeLog.includeContexts.toString()
-        assertNull changeSets[2].changeLog.includeContexts
+        assertEquals 'myContext', changeSets[0].changeLog.includeContextFilter.toString()
+        assertEquals 'myContext', changeSets[1].changeLog.includeContextFilter.toString()
+        assertNull changeSets[2].changeLog.includeContextFilter
 
-        verifyIncludedPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
+        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
      * Try including all files in a directory relative to a changelog that uses a relative path.
-     * This test is looking at the relativeToChangeLogFile parameter.
+     * This test is looking at the relativeToChangeLogFile parameter.  This test also sets a context
+     * without a contextFilter to make sure we handle the old parameter
      */
     @Test
     void includeAllRelativeToRelativeChangeLog() {
@@ -208,7 +212,7 @@ databaseChangeLog {
   preConditions {
     dbms(type: 'mysql')
   }
-  includeAll(path: 'include', relativeToChangelogFile: true)
+  includeAll(path: 'include', relativeToChangelogFile: true, context: 'myContext')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -234,7 +238,13 @@ databaseChangeLog {
         assertTrue changeSets[1].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
         assertTrue changeSets[2].filePath.startsWith(TMP_CHANGELOG_PATH)
 
-        verifyIncludedPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
+        // Take a look at the contexts of the changes.  The first 2, came from the included file,
+        // and should have contexts.  The 3rd one came from the root changelog and should not.
+        assertEquals 'myContext', changeSets[0].changeLog.includeContextFilter.toString()
+        assertEquals 'myContext', changeSets[1].changeLog.includeContextFilter.toString()
+        assertNull changeSets[2].changeLog.includeContextFilter
+
+        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
@@ -276,7 +286,7 @@ databaseChangeLog {
         assertTrue changeSets[1].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
         assertTrue changeSets[2].filePath.startsWith(TMP_CHANGELOG_PATH)
 
-        verifyIncludedPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
+        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
@@ -343,13 +353,7 @@ databaseChangeLog {
         assertTrue changeSets[0].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
 
-        def preconditions = rootChangeLog.preconditionContainer?.nestedPreconditions
-        assertNotNull preconditions
-        assertEquals 2, preconditions.size()
-        assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertTrue preconditions[1] instanceof PreconditionContainer
-        preconditions = preconditions[1].nestedPreconditions
-        assertTrue preconditions[0] instanceof RunningAsPrecondition
+        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
@@ -450,17 +454,7 @@ databaseChangeLog {
         assertTrue changeSets[1].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
         assertTrue changeSets[2].filePath.startsWith(TMP_CHANGELOG_PATH)
 
-        // We can't use the standard precondition validator because the order changed.
-        def preconditions = rootChangeLog.preconditionContainer?.nestedPreconditions
-        assertEquals 3, preconditions.size()
-        assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertTrue preconditions[1] instanceof PreconditionContainer
-        def nested = preconditions[1].nestedPreconditions
-        assertEquals 0, nested.size()
-        nested = preconditions[2].nestedPreconditions
-        assertTrue nested[0] instanceof RunningAsPrecondition
-        assertTrue preconditions[2] instanceof PreconditionContainer
-
+        verifyIncludedPreconditions(rootChangeLog)
     }
 
     /**
@@ -619,10 +613,11 @@ databaseChangeLog {
         assertEquals 1, changeSets.size()  // from the changelog itself.
         assertEquals ROOT_CHANGE_SET, changeSets[0].id
 
-        def preconditions = rootChangeLog.preconditionContainer?.nestedPreconditions
+        def preconditions = extractPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
         assertNotNull preconditions
         assertEquals 1, preconditions.size()
         assertTrue preconditions[0] instanceof DBMSPrecondition
+        assertEquals 'mysql', preconditions[0].type
     }
 
     //-------------------------------------------------------------------------------------------
@@ -660,7 +655,7 @@ databaseChangeLog {
         assertTrue changeSets[1].filePath.startsWith('include/')
         assertTrue changeSets[2].filePath.equals('changelog.groovy')
 
-        verifyIncludedPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
+        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
@@ -693,13 +688,7 @@ databaseChangeLog {
         assertTrue changeSets[0].filePath.startsWith('include/')
         assertTrue changeSets[1].filePath.equals('filtered-changelog.groovy')
 
-        def preconditions = rootChangeLog.preconditionContainer?.nestedPreconditions
-        assertNotNull preconditions
-        assertEquals 2, preconditions.size()
-        assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertTrue preconditions[1] instanceof PreconditionContainer
-        preconditions = preconditions[1].nestedPreconditions
-        assertTrue preconditions[0] instanceof RunningAsPrecondition
+        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
@@ -743,10 +732,11 @@ databaseChangeLog {
 
         assertTrue changeSets[0].filePath.equals('ignore-changelog.groovy')
 
-        def preconditions = rootChangeLog.preconditionContainer?.nestedPreconditions
+        def preconditions = extractPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
         assertNotNull preconditions
         assertEquals 1, preconditions.size()
         assertTrue preconditions[0] instanceof DBMSPrecondition
+        assertEquals 'mysql', preconditions[0].type
     }
 
     /**
@@ -820,26 +810,45 @@ databaseChangeLog {
     }
 
     /**
-     * Check the preconditions on hehalf of the various "includeAll" tests. Most of the "includeAll"
+     * Check the preconditions on behalf of the various "includeAll" tests. Most of the "includeAll"
      * tests use the same included changeSets, so this helper lets us keep our tests a little
-     * cleaner.  We should get 3 preconditions<br>
-     * The first is the DBMSPrecondition from the root ChangeLog.<br>
-     * The second is PreconditionContainer wrapping the RunningAsPrecondition from the first
-     * included changelog.<br>
-     * The third is an empty PreconditionContainer from the second included changelog.
+     * cleaner.  We should get 3 preconditions buried in our changelog structure:<br>
+     * A DBMSPrecondition from the root ChangeLog.<br>
+     * A RunningAsPrecondition from the first included changelog.<br>
+     * Aan empty PreconditionContainer from the second included changelog.
+     * <p>
+     * We won't worry about the 3rd one, but we'll make sure we get the first two.
      * @param preconditions the preconditions from the root changelog
      */
-    private def verifyIncludedPreconditions(preconditions) {
+    private def verifyIncludedPreconditions(rootChangeLog) {
+        def preconditions = extractPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
         assertNotNull preconditions
-        assertEquals 3, preconditions.size()
+        assertEquals 2, preconditions.size()
         assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertTrue preconditions[1] instanceof PreconditionContainer
-        def nested = preconditions[1].nestedPreconditions
-        assertTrue nested[0] instanceof RunningAsPrecondition
-        assertTrue preconditions[2] instanceof PreconditionContainer
-        nested = preconditions[2].nestedPreconditions
-        assertEquals 0, nested.size()
+        assertEquals 'mysql', preconditions[0].type
+        assertTrue preconditions[1] instanceof RunningAsPrecondition
+        assertEquals 'ssaliman', preconditions[1].username
+    }
 
+    /**
+     * Helper method to extract the actual preconditions from a list of potential preconditions.
+     * <p>
+     * Liquibase often nests the actual preconditions in a precondition container.  This method
+     * will walk through a collection of objects, extracting preconditions and recursively checking
+     * nested items in a container to get just the preconditions themselves.
+     * @param preconditions the collection of preconditions to search
+     * @return a list of actual preconditions.
+     */
+    private def extractPreconditions(preconditions) {
+        def actualPreconditions = []
+        preconditions?.each { pc ->
+            if ( pc instanceof PreconditionContainer ) {
+                actualPreconditions.addAll extractPreconditions(pc.nestedPreconditions)
+            } else if ( pc instanceof Precondition) {
+                actualPreconditions.add pc
+            }
+        }
+        return actualPreconditions
     }
 }
 

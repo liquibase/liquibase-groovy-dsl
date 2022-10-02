@@ -52,7 +52,7 @@ databaseChangeLog(logicalFilePath: '.') {
         dropTable(tableName: 'monkey_table')
     }
 
-    changeSet(id: 'first', author: 'stevesaliman', dbms: 'mysql', runAlways: true, runOnChange: false, context: '', runInTransaction: true, failOnError: false) {
+    changeSet(id: 'first', author: 'stevesaliman', dbms: 'mysql', runAlways: true, runOnChange: false, contextFilter: '', runInTransaction: true, failOnError: false) {
         // Comments supported through Groovy
         comment "Liquibase can be aware of this comment"
 

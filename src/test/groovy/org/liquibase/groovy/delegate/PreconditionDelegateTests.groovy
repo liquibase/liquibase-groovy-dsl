@@ -14,7 +14,8 @@
 package org.liquibase.groovy.delegate
 
 import liquibase.exception.ChangeLogParseException
-import liquibase.precondition.core.NotPrecondition;
+import liquibase.precondition.core.NotPrecondition
+import liquibase.precondition.core.UniqueConstraintExistsPrecondition;
 import org.junit.Test
 import static org.junit.Assert.*
 import liquibase.changelog.ChangeLogParameters
@@ -216,6 +217,32 @@ class PreconditionDelegateTests {
         assertEquals 'schema', preconditions[0].schemaName
         assertEquals 'pk_monkey', preconditions[0].primaryKeyName
     }
+
+
+    /**
+     * Try creating a uniqueConstraintExists precondition.
+     */
+    @Test
+    void uniqueConstraintExistsPrecondition() {
+        def preconditions = buildPreconditions {
+            uniqueConstraintExists(catalogName: 'zoo_catalog',
+                                   schemaName: 'schema',
+                                   tableName: 'monkey',
+                                   constraintName: 'uk_monkey_name',
+                                   columnNames: 'name')
+        }
+
+        assertNotNull preconditions
+        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
+        assertEquals 1, preconditions.size()
+        assertTrue preconditions[0] instanceof UniqueConstraintExistsPrecondition
+        assertEquals 'zoo_catalog', preconditions[0].catalogName
+        assertEquals 'schema', preconditions[0].schemaName
+        assertEquals 'monkey', preconditions[0].tableName
+        assertEquals 'uk_monkey_name', preconditions[0].constraintName
+        assertEquals 'name', preconditions[0].columnNames
+    }
+
 
     /**
      * And clauses are handled a little differently. Make sure we can create it correctly.

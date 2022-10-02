@@ -368,7 +368,7 @@ class ColumnDelegateTests {
             column(
                     name: 'columnName',
                     computed: true,
-                    type: 'varchar(30)',
+                    type: 'STRING',  // As of LB 4.4.0, this needs to match an enum value.
                     value: 'someValue',
                     valueNumeric: 1,
                     valueBoolean: false,
@@ -403,7 +403,7 @@ class ColumnDelegateTests {
         assertTrue delegate.columns[0] instanceof LoadDataColumnConfig
         assertEquals 'columnName', delegate.columns[0].name
         assertTrue delegate.columns[0].computed
-        assertEquals 'varchar(30)', delegate.columns[0].type
+        assertEquals 'STRING', delegate.columns[0].type
         assertEquals 'someValue', delegate.columns[0].value
         assertEquals 1, delegate.columns[0].valueNumeric.intValue()
         assertFalse delegate.columns[0].valueBoolean

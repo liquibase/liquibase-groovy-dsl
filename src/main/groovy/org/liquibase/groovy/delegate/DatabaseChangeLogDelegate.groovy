@@ -46,12 +46,17 @@ class DatabaseChangeLogDelegate {
 		// It doesn't make sense to expand expressions, since we haven't loaded properties yet.
 		params.each { key, value ->
 			// The context attribute needs a little work.  The value needs to be converted into an
-            // object, and the DatabaseChangelog has an attribute named "contexts"
-			if ( key.equals("context") ) {
-				key = "contexts"
-				value = new ContextExpression(value) {}
+            // object, and the DatabaseChangelog's attribute depends on the version of Liquibase.
+			if ( key.equals("context") || key.equals("contextFilter")) {
+                value = new ContextExpression(value) {}
+                // LB < 4.16 used "context", >= 4.16 uses "contextFilter"
+				if ( databaseChangeLog.hasProperty('context') ) {
+                    key = "context"
+                } else {
+                    key = "contextFilter"
+                }
 			}
-			databaseChangeLog[key] = value
+            databaseChangeLog[key] = value
 		}
 	}
 
@@ -79,6 +84,7 @@ class DatabaseChangeLogDelegate {
 				'runAlways',
 				'runOnChange',
 				'context',
+				'contextFilter',
 				'labels',
 				'runInTransaction',
 				'failOnError',
@@ -111,13 +117,17 @@ class DatabaseChangeLogDelegate {
 		if ( params.containsKey('logicalFilePath') ) {
 			filePath = params.logicalFilePath
 		}
-		def changeSet = new ChangeSet(
+        // Liquiase 4.16 deprecated "context" in favor of "contextFilter", but it still supports
+        // both.  A null here is fine.
+        def contextFilter = params.contextFilter? params.contextFilter : params.context
+
+        def changeSet = new ChangeSet(
 				DelegateUtil.expandExpressions(params.id, databaseChangeLog),
 				DelegateUtil.expandExpressions(params.author, databaseChangeLog),
 				DelegateUtil.parseTruth(params.runAlways, false),
 				DelegateUtil.parseTruth(params.runOnChange, false),
 				filePath,
-				DelegateUtil.expandExpressions(params.context, databaseChangeLog),
+				DelegateUtil.expandExpressions(contextFilter, databaseChangeLog),
 				DelegateUtil.expandExpressions(params.dbms, databaseChangeLog),
 				DelegateUtil.expandExpressions(params.runWith, databaseChangeLog),
 				DelegateUtil.parseTruth(params.runInTransaction, true),
@@ -165,7 +175,7 @@ class DatabaseChangeLogDelegate {
 	 */
 	void include(Map params = [:]) {
 		// validate parameters.\
-		def unsupportedKeys = params.keySet() - ['file', 'relativeToChangelogFile', 'context', 'labels', 'ignore']
+		def unsupportedKeys = params.keySet() - ['file', 'relativeToChangelogFile', 'context', 'contextFilter', 'labels', 'ignore']
 		if ( unsupportedKeys.size() > 0 ) {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'include' element.")
 		}
@@ -176,7 +186,8 @@ class DatabaseChangeLogDelegate {
 	   	def fileName = databaseChangeLog
 			    .changeLogParameters
 			    .expandExpressions(params.file, databaseChangeLog)
-		def includeContexts = new ContextExpression(params.context)
+        def context = params.contextFilter? params.contextFilter : params.context
+		def includeContexts = new ContextExpression(context)
 		def labels = new LabelExpression(params.labels)
 		def ignore = DelegateUtil.parseTruth(params.ignore, false)
 		if ( absoluteFile ) {
@@ -194,14 +205,15 @@ class DatabaseChangeLogDelegate {
 	 */
 	void includeAll(Map params = [:]) {
 		// validate parameters.
-		def unsupportedKeys = params.keySet() - ['path', 'relativeToChangelogFile', 'errorIfMissingOrEmpty', 'resourceComparator', 'filter', 'context', 'labels', 'ignore']
+		def unsupportedKeys = params.keySet() - ['path', 'relativeToChangelogFile', 'errorIfMissingOrEmpty', 'resourceComparator', 'filter', 'context', 'contextFilter', 'labels', 'ignore']
 		if (unsupportedKeys.size() > 0) {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'includeAll' element.")
 		}
 
 		def relativeToChangelogFile = DelegateUtil.parseTruth(params.relativeToChangelogFile, false)
 		def errorIfMissingOrEmpty = DelegateUtil.parseTruth(params.errorIfMissingOrEmpty, true)
-		def includeContexts = new ContextExpression(params. context)
+        def context = params.contextFilter? params.contextFilter : params.context
+        def includeContexts = new ContextExpression(context)
 		def ignore = DelegateUtil.parseTruth(params.ignore, false)
 		def labels = new LabelExpression(params.labels)
 
@@ -275,7 +287,7 @@ class DatabaseChangeLogDelegate {
 	 */
 	void property(Map params = [:]) {
 		// Start by validating input
-		def unsupportedKeys = params.keySet() - ['name', 'value', 'context', 'labels', 'dbms', 'global', 'file']
+		def unsupportedKeys = params.keySet() - ['name', 'value', 'context', 'contextFilter', 'labels', 'dbms', 'global', 'file']
 		if (unsupportedKeys.size() > 0) {
 			throw new ChangeLogParseException("DababaseChangeLog: ${unsupportedKeys.toArray()[0]} is not a supported property attribute")
 		}
@@ -283,6 +295,10 @@ class DatabaseChangeLogDelegate {
 		ContextExpression context = null
 		if (params['context'] != null) {
 			context = new ContextExpression(params['context'])
+		}
+        // Done second so it takes precedence over "context"
+		if (params['contextFilter'] != null) {
+			context = new ContextExpression(params['contextFilter'])
 		}
 		Labels labels = null
 		if (params['labels'] != null) {

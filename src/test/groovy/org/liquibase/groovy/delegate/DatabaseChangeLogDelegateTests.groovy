@@ -102,7 +102,7 @@ class DatabaseChangeLogDelegateTests {
         assertNotNull "Parsed DatabaseChangeLog was null", changeLog
         assertTrue "Parser result was not a DatabaseChangeLog", changeLog instanceof DatabaseChangeLog
         assertEquals '.', changeLog.logicalFilePath
-        assertEquals "myContext", changeLog.contexts.toString()
+        assertEquals "myContext", changeLog.contextFilter.toString()
 
         def changeSets = changeLog.changeSets
         assertEquals 1, changeSets.size()
@@ -166,7 +166,8 @@ databaseChangeLog()
         closure.delegate = delegate
         closure.call()
 
-        def preconditions = databaseChangeLog.preconditions
+        // Liquibase now wraps the container in a container.  I don't know why.
+        def preconditions = databaseChangeLog.preconditions.nestedPreconditions[0]
         assertNotNull preconditions
         assertTrue preconditions instanceof PreconditionContainer
         assertEquals PreconditionContainer.FailOption.WARN, preconditions.onFail
@@ -193,7 +194,7 @@ databaseChangeLog()
         // the property doesn't match xml or docs.
         assertFalse changeLog.changeSets[0].runOnChange
         assertEquals ROOT_CHANGELOG_PATH, changeLog.changeSets[0].filePath
-        assertEquals 0, changeLog.changeSets[0].contexts.contexts.size()
+        assertEquals 0, changeLog.changeSets[0].contextFilter.contexts.size()
         assertNull changeLog.changeSets[0].labels
         assertNull changeLog.changeSets[0].dbmsSet
         assertTrue changeLog.changeSets[0].runInTransaction
@@ -206,7 +207,9 @@ databaseChangeLog()
 
     /**
      * Test creating a changeSet with all supported attributes.  We support filePath and
-     * logicalFilepath.  This test uses filePath
+     * logicalFilepath.  This test uses filePath.  This test also sets both a context and a
+     * contextFilter to prove that the contextFilter takes precedence over the older context
+     * parameter.
      */
     @Test
     void changeSetFull() {
@@ -219,7 +222,8 @@ databaseChangeLog()
                       dbms: 'mysql',
                       runAlways: true,
                       runOnChange: true,
-                      context: 'testing',
+                      context: 'should_be_overridden_by_contextFilter',
+                      contextFilter: 'testing',
                       labels: 'test_label',
                       runInTransaction: false,
                       failOnError: true,
@@ -242,7 +246,7 @@ databaseChangeLog()
         assertTrue changeSet.alwaysRun // the property doesn't match xml or docs.
         assertTrue changeSet.runOnChange
         assertEquals 'file_path', changeSet.filePath
-        assertEquals 'testing', changeSet.contexts.contexts.toArray()[0]
+        assertEquals 'testing', changeSet.contextFilter.contexts.toArray()[0]
         assertEquals 'test_label', changeSet.labels.toString()
         assertEquals 'mysql', changeSet.dbmsSet.toArray()[0]
         assertFalse changeSet.runInTransaction
@@ -256,7 +260,7 @@ databaseChangeLog()
 
         // Did the changeset get the parameters?
         def changeLogParameters = changeSet.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("changeLogParameters")
+        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
         f.setAccessible(true)
         def changeSetParams = f.get(changeLogParameters)
         def param = changeSetParams[changeSetParams.size() - 1] // The last one is ours.
@@ -266,7 +270,8 @@ databaseChangeLog()
 
     /**
      * Test creating a changeSet with all supported attributes.  We support filePath and
-     * logicalFilepath.  This test uses logicalFilePath
+     * logicalFilepath.  This test uses logicalFilePath, and it skips setting the contextFilter
+     * parameter to prove that we can still use the older context parameter.
      */
     @Test
     void changeSetFullLogicalFilePath() {
@@ -298,7 +303,7 @@ databaseChangeLog()
         assertTrue changeLog.changeSets[0].alwaysRun // the property doesn't match xml or docs.
         assertTrue changeLog.changeSets[0].runOnChange
         assertEquals 'file_path', changeLog.changeSets[0].filePath
-        assertEquals 'testing', changeLog.changeSets[0].contexts.contexts.toArray()[0]
+        assertEquals 'testing', changeLog.changeSets[0].contextFilter.contexts.toArray()[0]
         assertEquals 'test_label', changeLog.changeSets[0].labels.toString()
         assertEquals 'mysql', changeLog.changeSets[0].dbmsSet.toArray()[0]
         assertFalse changeLog.changeSets[0].runInTransaction
@@ -325,7 +330,7 @@ databaseChangeLog()
                       dbms: 'mysql',
                       runAlways: true,
                       runOnChange: true,
-                      context: 'testing',
+                      contextFilter: 'testing',
                       labels: 'test_label',
                       runInTransaction: false,
                       failOnError: true,
@@ -346,7 +351,7 @@ databaseChangeLog()
         assertTrue changeLog.changeSets[0].alwaysRun // the property doesn't match xml or docs.
         assertTrue changeLog.changeSets[0].runOnChange
         assertEquals ROOT_CHANGELOG_PATH, changeLog.changeSets[0].filePath
-        assertEquals 'testing', changeLog.changeSets[0].contexts.contexts.toArray()[0]
+        assertEquals 'testing', changeLog.changeSets[0].contextFilter.contexts.toArray()[0]
         assertEquals 'test_label', changeLog.changeSets[0].labels.toString()
         assertEquals 'mysql', changeLog.changeSets[0].dbmsSet.toArray()[0]
         assertFalse changeLog.changeSets[0].runInTransaction
@@ -370,7 +375,7 @@ databaseChangeLog()
                       dbms: 'mysql',
                       runAlways: false,
                       runOnChange: true,
-                      context: 'testing',
+                      contextFilter: 'testing',
                       labels: 'test_label',
                       runInTransaction: false,
                       failOnError: true,
@@ -392,7 +397,7 @@ databaseChangeLog()
                       dbms: 'mysql',
                       runAlways: false,
                       runOnChange: true,
-                      context: 'testing',
+                      contextFilter: 'testing',
                       labels: 'test_label',
                       runInTransaction: false,
                       failOnError: true,
@@ -419,9 +424,10 @@ databaseChangeLog()
         assertEquals 0, changeLog.changeSets.size()
         assertNotNull changeLog.preconditions
         assertTrue changeLog.preconditions.nestedPreconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, changeLog.preconditions.nestedPreconditions.size()
-        assertTrue changeLog.preconditions.nestedPreconditions[0] instanceof DBMSPrecondition
-        assertEquals 'mysql', changeLog.preconditions.nestedPreconditions[0].type
+        def preconditions = extractPreconditions changeLog.preconditions
+        assertEquals 1, preconditions.size()
+        assertTrue preconditions[0] instanceof DBMSPrecondition
+        assertEquals 'mysql', preconditions[0].type
 
     }
 
@@ -446,15 +452,17 @@ databaseChangeLog()
 
         // change log parameters are not exposed through the API, so get them using reflection.
         def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("changeLogParameters")
+        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
         f.setAccessible(true)
         def properties = f.get(changeLogParameters)
         def property = properties[properties.size() - 1] // The last one is ours.
         assertNull property.key
         assertNull property.value
         assertNull property.validDatabases
-        assertNull property.validContexts
-        assertNull property.labels
+        def contexts = property.validContexts?.contexts
+        assertTrue contexts == null || contexts.size() == 0
+        def labels = property.labels?.labels
+        assertTrue labels == null || labels.size() == 0
     }
 
     /**
@@ -470,30 +478,37 @@ databaseChangeLog()
         // change log parameters are not exposed through the API, so get them using reflection.
         // Also, there are
         def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("changeLogParameters")
+        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
         f.setAccessible(true)
         def properties = f.get(changeLogParameters)
         def property = properties[properties.size() - 1] // The last one is ours.
-        assertEquals 'emotion', property.key
-        assertEquals 'angry', property.value
         assertNull property.validDatabases
-        assertNull property.validContexts
-        assertNull property.labels
+        def contexts = property.validContexts?.contexts
+        assertTrue contexts == null || contexts.size() == 0
+        def labels = property.labels?.labels
+        assertTrue labels == null || labels.size() == 0
     }
 
     /**
      * Try creating a property with all supported attributes, and a boolean for the global
-     * attribute.
+     * attribute.  This test also sets both a context and contextFilter to make sure the newer
+     * contextFilter takes precedence over the older context parameter.
      */
     @Test
     void propertyFullBooleanGlobal() {
         def changeLog = buildChangeLog {
-            property(name: 'emotion', value: 'angry', dbms: 'mysql', labels: 'test_label', context: 'test', 'global': true)
+            property(name: 'emotion',
+                    value: 'angry',
+                    dbms: 'mysql',
+                    labels: 'test_label',
+                    context: 'should_be_overridden',
+                    contextFilter: 'test',
+                    'global': true)
         }
 
         // change log parameters are not exposed through the API, so get them using reflection.
         def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("changeLogParameters")
+        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
         f.setAccessible(true)
         def properties = f.get(changeLogParameters)
         def property = properties[properties.size() - 1] // The last one is ours.
@@ -506,16 +521,23 @@ databaseChangeLog()
 
     /**
      * Try creating a property with all supported attributes and a String for the global attribute.
+     * This test skips setting the contextFilter parameter to prove the older context parameter
+     * still works.
      */
     @Test
     void propertyFullStringGlobal() {
         def changeLog = buildChangeLog {
-            property(name: 'emotion', value: 'angry', dbms: 'mysql', labels: 'test_label', context: 'test', 'global': 'true')
+            property(name: 'emotion',
+                    value: 'angry',
+                    dbms: 'mysql',
+                    labels: 'test_label',
+                    context: 'test',
+                    'global': 'true')
         }
 
         // change log parameters are not exposed through the API, so get them using reflection.
         def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("changeLogParameters")
+        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
         f.setAccessible(true)
         def properties = f.get(changeLogParameters)
         def property = properties[properties.size() - 1] // The last one is ours.
@@ -555,15 +577,17 @@ emotion=angry
         // change log parameters are not exposed through the API, so get them using reflection.
         // Also, there are
         def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("changeLogParameters")
+        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
         f.setAccessible(true)
         def properties = f.get(changeLogParameters)
         def property = properties[properties.size() - 1] // The last one is ours.
         assertEquals 'emotion', property.key
         assertEquals 'angry', property.value
         assertNull property.validDatabases
-        assertNull property.validContexts
-        assertNull property.labels
+        def contexts = property.validContexts?.contexts
+        assertTrue contexts == null || contexts.size() == 0
+        def labels = property.labels?.labels
+        assertTrue labels == null || labels.size() == 0
     }
 
     /**
@@ -578,13 +602,13 @@ emotion=angry
         propertyFile = propertyFile.replaceAll("\\\\", "/")
 
         def changeLog = buildChangeLog {
-            property(file: "${propertyFile}", dbms: 'mysql', context: 'test', labels: 'test_label')
+            property(file: "${propertyFile}", dbms: 'mysql', contextFilter: 'test', labels: 'test_label')
         }
 
         // change log parameters are not exposed through the API, so get them using reflection.
         // Also, there are
         def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("changeLogParameters")
+        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
         f.setAccessible(true)
         def properties = f.get(changeLogParameters)
         def property = properties[properties.size() - 1] // The last one is ours.
@@ -641,6 +665,28 @@ emotion=angry
         def file = File.createTempFile(prefix, suffix, directory)
         file << text
     }
+
+    /**
+     * Helper method to extract the actual preconditions from a list of potential preconditions.
+     * <p>
+     * Liquibase often nests the actual preconditions in a precondition container.  This method
+     * will walk through a collection of objects, extracting preconditions and recursively checking
+     * nested items in a container to get just the preconditions themselves.
+     * @param preconditions the collection of preconditions to search
+     * @return a list of actual preconditions.
+     */
+    private def extractPreconditions(preconditions) {
+        def actualPreconditions = []
+        preconditions?.each { pc ->
+            if ( pc instanceof PreconditionContainer ) {
+                actualPreconditions.addAll extractPreconditions(pc.nestedPreconditions)
+            } else if ( pc instanceof Precondition) {
+                actualPreconditions.add pc
+            }
+        }
+        return actualPreconditions
+    }
+
 
 }
 

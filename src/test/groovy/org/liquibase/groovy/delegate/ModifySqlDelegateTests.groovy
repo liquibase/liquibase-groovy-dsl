@@ -97,11 +97,12 @@ class ModifySqlDelegateTests {
 
     /**
      * Test the append element with all supported attributes.  For this test, we will also set a
-     * context and a label
+     * context and a label, and we'll set both the context and contextFilter to make sure the newer
+     * contextFilter wins.
      */
     @Test
     void appendFull() {
-        def sqlVisitors = buildDelegate(context: 'test', labels: 'test_label') {
+        def sqlVisitors = buildDelegate(context: 'override', contextFilter: 'test', labels: 'test_label') {
             append(value: 'exec')
         }
         assertEquals 1, sqlVisitors.size()

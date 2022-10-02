@@ -1,3 +1,9 @@
+Changes for 3.0.3
+=================
+- Updated Gradle to version 7.5.1 and moved all the build properties to gradle.properties.
+
+- Added support for Liquibase 4.16.
+
 Changes for 3.0.2
 =================
 - Fixed #50, which prevented changelog parameters from being passed into the 

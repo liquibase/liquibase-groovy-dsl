@@ -9,6 +9,9 @@ project was started once upon a time by Tim Berglund, and is currently
 maintained by Steve Saliman.
 
 ## News
+### October 2, 2022
+Added support for Liquibase 4.16.
+
 ### June 12, 2021
 Fixed a bug with change log parameters (#50)
 

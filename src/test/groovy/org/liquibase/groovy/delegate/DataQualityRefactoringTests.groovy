@@ -87,6 +87,8 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertNull changes[0].columnDataType
         assertNull changes[0].startWith
         assertNull changes[0].incrementBy
+        assertNull changes[0].defaultOnNull // The change uses an Object Boolean.
+        assertNull changes[0].generationType
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
@@ -104,7 +106,9 @@ class DataQualityRefactoringTests extends ChangeSetTests {
                     columnName: 'angry',
                     columnDataType: 'boolean',
                     startWith: 10,
-                    incrementBy: 5
+                    incrementBy: 5,
+                    defaultOnNull: true,
+                    generationType: 'magic'
             )
         }
 
@@ -120,6 +124,8 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertEquals 'boolean', changes[0].columnDataType
         assertEquals 10G, changes[0].startWith
         assertEquals 5G, changes[0].incrementBy
+        assertTrue changes[0].defaultOnNull
+        assertEquals 'magic', changes[0].generationType
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
@@ -815,6 +821,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertNull changes[0].tableName
         assertNull changes[0].columnName
         assertNull changes[0].columnDataType
+        assertNull changes[0].constraintName
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
@@ -830,7 +837,8 @@ class DataQualityRefactoringTests extends ChangeSetTests {
                     schemaName: 'schema',
                     tableName: 'monkey',
                     columnName: 'emotion',
-                    columnDataType: 'varchar(75)')
+                    columnDataType: 'varchar(75)',
+                    constraintName: 'nn_monkey_emotion')
         }
 
         assertEquals 0, changeSet.rollback.changes.size()
@@ -843,6 +851,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertEquals 'monkey', changes[0].tableName
         assertEquals 'emotion', changes[0].columnName
         assertEquals 'varchar(75)', changes[0].columnDataType
+        assertEquals 'nn_monkey_emotion', changes[0].constraintName
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
