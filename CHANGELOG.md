@@ -1,8 +1,11 @@
 Changes for 3.0.3
 =================
-- Updated Gradle to version 7.5.1 and moved all the build properties to gradle.properties.
+- Updated Gradle to version 7.6.1 and moved all the build properties to gradle.properties.
 
-- Added support for Liquibase 4.16.
+- Added support for Liquibase 4.16, updated the default version of Groovy to 3.0.15
+
+- Added support for Groovy 4 (#53), with thanks to Bjørn Vester (@bjornvester)
+
 
 Changes for 3.0.2
 =================
