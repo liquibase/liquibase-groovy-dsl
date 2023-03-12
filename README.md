@@ -24,12 +24,11 @@ liquibaseRuntime "org.apache.groovy:groovy-sql:4.0.5"
 
 ## News
 ### March 12, 2023
-- Added support for Liquibase 4.16.
-
-- Added support for Groovy 4 (#53), with thanks to Bjørn Vester (@bjornvester)
+Release 3.0.3 adds support for Liquibase up to version 4.16.1, and it adds support for Groovy 4
+(#53), with thanks to Bjørn Vester (@bjornvester)
 
 ### June 12, 2021
-Fixed a bug with change log parameters (#50)
+Release 3.0.2 Fixes a bug with change log parameters (#50)
 
 ### April 16, 2021
 Version 3.0.1 of the Liquibase Groovy DSL is now available with support for  Liquibase 4.2.2.
