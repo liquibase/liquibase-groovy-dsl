@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2023 Tim Berglund and Steven C. Saliman
+ * Copyright 2011-2024 Tim Berglund and Steven C. Saliman
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License.  You may obtain a copy of the License at
@@ -34,8 +34,8 @@ class ConstraintDelegate {
     def constraints(Map params = [:]) {
         params.each { key, value ->
             try {
-                def x = DelegateUtil.expandExpressions(value, databaseChangeLog)
-                PatchedObjectUtil.setProperty(constraint, key, x)
+                def expandedValue = DelegateUtil.expandExpressions(value, databaseChangeLog)
+                PatchedObjectUtil.setProperty(constraint, key, expandedValue)
             } catch (RuntimeException e) {
                 // Rethrow as an ChangeLogParseException with a more helpful message than you'll get
                 // from the Liquibase helper.
@@ -43,18 +43,6 @@ class ConstraintDelegate {
             }
         }
     }
-
-    /**
-     * This method is only here to provide a sane error message during a transition period, and will
-     * be removed in a future release.
-     * @param closure
-     */
-    @Deprecated
-    def constraints(Closure closure) {
-        // this is not how the XML works, and we don't do this anywhere else so deprecate it.
-        throw new ChangeLogParseException("Error: ChangeSet '${changeSetId}', ${changeName} change: Setting constraint attributes in nested closures is no longer supported. Use an attribute map instead.")
-    }
-
 
     def methodMissing(String name, params) {
         if ( constraint.hasProperty(name) ) {

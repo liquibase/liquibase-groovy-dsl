@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2023 Tim Berglund and Steven C. Saliman
+ * Copyright 2011-2024 Tim Berglund and Steven C. Saliman
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License.  You may obtain a copy of the License at
@@ -389,27 +389,6 @@ class NonRefactoringTransformationTests extends ChangeSetTests {
     }
 
     /**
-     * Test parsing a loadData change when the file name is actually a File object.  This was
-     * deprecated, so make sure we get the expected error. This test can be removed when we stop
-     * explicitly checking this condition in the delegate.
-     */
-    @Test(expected = ChangeLogParseException)
-    void loadDataFullWithFile() {
-        buildChangeSet {
-            loadData(catalogName: 'catalog',
-                     schemaName: 'schema',
-                     tableName: 'monkey',
-                     file: new File('data.csv'),
-                     encoding: 'UTF-8',
-                     separator: ';',
-                     quotchar: '"') {
-                column(name: 'id')
-                column(name: 'emotion')
-            }
-        }
-    }
-
-    /**
      * LoadData changes allow columns but not a where clause, so try one that has a where clause to
      * make sure it is properly rejected.
      */
@@ -509,27 +488,6 @@ class NonRefactoringTransformationTests extends ChangeSetTests {
         assertEquals 'id', columns[0].name
         assertEquals 'emotion', columns[1].name
         assertNoOutput()
-    }
-
-    /**
-     * Test parsing a loadData change when the file name is actually a File object.  This was
-     * removed from the delegate, so make sure we get the expected exception.  This test can be
-     * removed when we stop looking for this condition in the delegate.
-     */
-    @Test(expected = ChangeLogParseException)
-    void loadUpdateDataFullWithFile() {
-        buildChangeSet {
-            loadUpdateData(catalogName: 'catalog',
-                           schemaName: 'schema',
-                           tableName: 'monkey',
-                           file: new File('data.csv'),
-                           encoding: 'UTF-8',
-                           separator: ';',
-                           quotchar: '"') {
-                column(name: 'id')
-                column(name: 'emotion')
-            }
-        }
     }
 
     /**

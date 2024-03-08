@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2023 Tim Berglund and Steven C. Saliman
+ * Copyright 2011-2024 Tim Berglund and Steven C. Saliman
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License.  You may obtain a copy of the License at
@@ -64,7 +64,7 @@ class GroovyLiquibaseChangeLogParser implements ChangeLogParser {
             try {
                 inputStream.close()
             }
-            catch (Exception e) {
+            catch (Exception ignored) {
                 // Can't do much more than hope for the best here
             }
         }

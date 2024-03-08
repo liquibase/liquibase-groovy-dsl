@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2023 Tim Berglund and Steven C. Saliman
+ * Copyright 2011-2024 Tim Berglund and Steven C. Saliman
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License.  You may obtain a copy of the License at
@@ -33,7 +33,7 @@ class DelegateUtil {
             return null
         }
 
-        // Don't try to expand if we have no paramaters.
+        // Don't try to expand if we have no parameters.
         if ( databaseChangeLog.changeLogParameters == null ) {
             return expression
         }

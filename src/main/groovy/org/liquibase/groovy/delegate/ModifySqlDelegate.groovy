@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2023 Tim Berglund and Steven C. Saliman
+ * Copyright 2011-2024 Tim Berglund and Steven C. Saliman
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License.  You may obtain a copy of the License at
@@ -15,7 +15,6 @@
 package org.liquibase.groovy.delegate
 
 import liquibase.ContextExpression
-import liquibase.Contexts
 import liquibase.Labels
 import liquibase.exception.ChangeLogParseException
 import liquibase.sql.visitor.SqlVisitor;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2023 Tim Berglund and Steven C. Saliman
+ * Copyright 2011-2024 Tim Berglund and Steven C. Saliman
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License.  You may obtain a copy of the License at
@@ -347,8 +347,7 @@ class ChangeSetDelegate {
      */
     void executeCommand(Map params, Closure closure) {
         def change = makeChangeFromMap('executeCommand', params)
-        def delegate = new ArgumentDelegate(changeSetId: changeSet.id,
-                changeName: 'executeCommand')
+        def delegate = new ArgumentDelegate(changeSetId: changeSet.id, changeName: 'executeCommand')
         closure.delegate = delegate
         closure.resolveStrategy = Closure.DELEGATE_FIRST
         closure.call()
@@ -375,10 +374,6 @@ class ChangeSetDelegate {
      * @param closure the closure to call with the nested columns for the change.
      */
     void loadData(Map params, Closure closure) {
-        if ( params.file instanceof File ) {
-            throw new ChangeLogParseException("Warning: ChangeSet '${changeSet.id}': using a File object for loadData's 'file' attribute is no longer supported.  Use the path to the file instead.")
-        }
-
         addChange(makeColumnarChangeFromMap('loadData', LoadDataColumnConfig, params, closure))
     }
 
@@ -388,10 +383,6 @@ class ChangeSetDelegate {
      * @param closure the closure to call with the nested columns for the change.
      */
     void loadUpdateData(Map params, Closure closure) {
-        if ( params.file instanceof File ) {
-            throw new ChangeLogParseException("Warning: ChangeSet '${changeSet.id}': using a File object for loadUpdateData's 'file' attribute is no longer supported.  Use the path to the file instead.")
-        }
-
         addChange(makeColumnarChangeFromMap('loadUpdateData', LoadDataColumnConfig, params, closure))
     }
 
@@ -420,8 +411,7 @@ class ChangeSetDelegate {
      */
     void sql(Map params = [:], Closure closure) {
         def change = makeChangeFromMap('sql', params)
-        def delegate = new CommentDelegate(changeSetId: changeSet.id,
-                changeName: 'sql')
+        def delegate = new CommentDelegate(changeSetId: changeSet.id, changeName: 'sql')
         closure.delegate = delegate
         closure.resolveStrategy = Closure.DELEGATE_FIRST
         // expand expressions because the comment delegate won't...

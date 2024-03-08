@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2023 Tim Berglund and Steven C. Saliman
+ * Copyright 2011-2024 Tim Berglund and Steven C. Saliman
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License.  You may obtain a copy of the License at
@@ -15,7 +15,6 @@
 package org.liquibase.groovy.delegate
 
 import liquibase.ContextExpression
-import liquibase.LabelExpression
 import liquibase.Labels
 import liquibase.change.visitor.ChangeVisitor
 import liquibase.change.visitor.ChangeVisitorFactory
@@ -46,16 +45,12 @@ class DatabaseChangeLogDelegate {
 		this.databaseChangeLog = databaseChangeLog
 		// It doesn't make sense to expand expressions, since we haven't loaded properties yet.
 		params.each { key, value ->
-			// The context attribute needs a little work.  The value needs to be converted into an
-            // object, and the DatabaseChangelog's attribute depends on the version of Liquibase.
+			// The contextFilter attribute needs a little work.  The value needs to be converted
+            // into an object, and for now, we'll support the old "context" attribute.
 			if ( key.equals("context") || key.equals("contextFilter")) {
                 value = new ContextExpression(value) {}
-                // LB < 4.16 used "context", >= 4.16 uses "contextFilter"
-				if ( databaseChangeLog.hasProperty('context') ) {
-                    key = "context"
-                } else {
-                    key = "contextFilter"
-                }
+                // LB >= 4.16 uses "contextFilter", so convert the pre-4.16 key.
+                key = "contextFilter"
 			}
             databaseChangeLog[key] = value
 		}
@@ -330,7 +325,7 @@ class DatabaseChangeLogDelegate {
                 'errorIfMissing',
         ]
 		if (unsupportedKeys.size() > 0) {
-			throw new ChangeLogParseException("DababaseChangeLog: ${unsupportedKeys.toArray()[0]} is not a supported property attribute")
+			throw new ChangeLogParseException("DatabaseChangeLog: ${unsupportedKeys.toArray()[0]} is not a supported property attribute")
 		}
 
 		ContextExpression context = null
@@ -346,7 +341,8 @@ class DatabaseChangeLogDelegate {
 			labels = new Labels(params['labels'])
 		}
 		def dbms = params['dbms'] ?: null
-		// The default for global was true prior to Liquibase 3.4
+		// The default for global was true prior to Liquibase 3.4, and the other parsers still use
+        // true as the default.
 		def global = DelegateUtil.parseTruth(params.global, true)
 
 		def changeLogParameters = databaseChangeLog.changeLogParameters
@@ -387,11 +383,11 @@ class DatabaseChangeLogDelegate {
                 'remove'
         ]
         if (unsupportedKeys.size() > 0) {
-            throw new ChangeLogParseException("DababaseChangeLog: ${unsupportedKeys.toArray()[0]} is not a supported property attribute")
+            throw new ChangeLogParseException("DatabaseChangeLog: ${unsupportedKeys.toArray()[0]} is not a supported property attribute")
         }
 
         if ( !params.dbms || !params.remove ) {
-            throw new ChangeLogParseException("DababaseChangeLog: missing value for the 'dbms' or 'remove' parameter")
+            throw new ChangeLogParseException("DatabaseChangeLog: missing value for the 'dbms' or 'remove' parameter")
         }
 
         def currentDb = databaseChangeLog.changeLogParameters.database
@@ -402,7 +398,7 @@ class DatabaseChangeLogDelegate {
 
         ChangeVisitor changeVisitor = ChangeVisitorFactory.getInstance().create(params.change)
         if ( !changeVisitor ) {
-            throw new ChangeLogParseException("DababaseChangeLog: ${params.change} is not a valid change type")
+            throw new ChangeLogParseException("DatabaseChangeLog: ${params.change} is not a valid change type")
         }
 
         changeVisitor.dbms = params.dbms.split(',')
