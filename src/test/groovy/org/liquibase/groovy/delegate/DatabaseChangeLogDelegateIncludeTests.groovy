@@ -23,6 +23,7 @@ import liquibase.precondition.Precondition
 import liquibase.precondition.core.DBMSPrecondition
 import liquibase.precondition.core.PreconditionContainer
 import liquibase.precondition.core.RunningAsPrecondition
+import liquibase.resource.DirectoryResourceAccessor
 import liquibase.resource.FileSystemResourceAccessor
 import org.junit.After
 import org.junit.Before
@@ -47,6 +48,9 @@ class DatabaseChangeLogDelegateIncludeTests {
     static final INCLUDED_CHANGELOG_PATH = TMP_CHANGELOG_PATH + "/include"
     static final TMP_CHANGELOG_DIR = new File(TMP_CHANGELOG_PATH)
     static final INCLUDED_CHANGELOG_DIR = new File(INCLUDED_CHANGELOG_PATH)
+    // This one is not a real file, but it looks like a legit file.  It is used by tests that
+    // build changelogs on the fly.
+    static final MOCK_CHANGELOG = "${ROOT_CHANGELOG_PATH}/mock-changelog.groovy"
 
     def resourceAccessor
     ChangeLogParserFactory parserFactory
@@ -59,7 +63,7 @@ class DatabaseChangeLogDelegateIncludeTests {
         // ".", then get that file's absolute path, which produces something like
         // "/some/path/to/dir/.", just like what Liquibase does.
         def f = new File(".")
-        resourceAccessor = new FileSystemResourceAccessor(new File(f.absolutePath))
+        resourceAccessor = new DirectoryResourceAccessor(new File(f.absolutePath))
         parserFactory = ChangeLogParserFactory.instance
         ChangeLogParserFactory.getInstance().register(new GroovyLiquibaseChangeLogParser())
         // make sure we start with clean temporary directories before each test
@@ -91,7 +95,7 @@ class DatabaseChangeLogDelegateIncludeTests {
      * case, the fileName property is not set, so it can't be expanded and the parser will look for
      * a file named '${fileName}.groovy', which of course doesn't exist.
      */
-    @Test(expected = ChangeLogParseException)
+    @Test(expected = IllegalArgumentException)
     void includeWithInvalidProperty() {
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
@@ -172,7 +176,7 @@ databaseChangeLog {
 
     /**
      * Try including a file with an filename that is relative to the working directory.  This test
-     * will set a context but not a contextFilter to prove we can still handle the old contaxt
+     * will set a context but not a contextFilter to prove we can still handle the old context
      * parameter
      */
     @Test
@@ -196,7 +200,7 @@ databaseChangeLog {
   preConditions {
     dbms(type: 'mysql')
   }
-  include(file: '${includedChangeLogFile}', context: 'myContext')
+  include(file: '${includedChangeLogFile}', context: 'myContext', errorIfMissing: false)
   changeSet(author: 'ssaliman', id: 'ROOT_CHANGE_SET') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -254,7 +258,7 @@ databaseChangeLog {
   preConditions {
     dbms(type: 'mysql')
   }
-  include(file: 'include/${includedChangeLogFile}', relativeToChangelogFile: true, contextFilter: 'myContext')
+  include(file: 'include/${includedChangeLogFile}', relativeToChangelogFile: true, errorIfMissing: false, contextFilter: 'myContext')
   changeSet(author: 'ssaliman', id: 'ROOT_CHANGE_SET') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -312,7 +316,7 @@ databaseChangeLog {
   preConditions {
     dbms(type: 'mysql')
   }
-  include(file: '../tmp/include/${includedChangeLogFile}', relativeToChangelogFile: true, contextFilter: 'myContext')
+  include(file: '../tmp/include/${includedChangeLogFile}', relativeToChangelogFile: true, errorIfMissing: false, contextFilter: 'myContext')
   changeSet(author: 'ssaliman', id: 'ROOT_CHANGE_SET') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -338,7 +342,8 @@ databaseChangeLog {
 
         // Check that the paths of the included change set is relative. The 2nd change set did not
         // come from the "include", so it will be relative as well..
-        assertTrue changeSets[0].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
+        assertTrue changeSets[0].filePath.startsWith(TMP_CHANGELOG_PATH)
+        assertTrue changeSets[0].filePath.contains("/../")
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
 
         verifyIncludedPreconditions rootChangeLog
@@ -352,7 +357,7 @@ databaseChangeLog {
      * @return the changeSet, with parsed changes from the closure added.
      */
     private def buildChangeLog(Closure closure) {
-        def changelog = new DatabaseChangeLog(ROOT_CHANGELOG_PATH)
+        def changelog = new DatabaseChangeLog(MOCK_CHANGELOG)
         changelog.changeLogParameters = new ChangeLogParameters()
         closure.delegate = new DatabaseChangeLogDelegate(changelog)
         closure.delegate.resourceAccessor = resourceAccessor

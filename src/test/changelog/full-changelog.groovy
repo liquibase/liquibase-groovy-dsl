@@ -41,9 +41,10 @@ databaseChangeLog(logicalFilePath: '.') {
         }
     }
 
-    include(file: 'empty-changelog.groovy', relativeToChangelogFile: true)
+    include(file: 'empty-changelog.groovy', relativeToChangelogFile: true, errorIfMissing: false)
 
-    includeAll(path: 'include', relativeToChangelogFile: true)
+    // TODO: Add ehdsWithFilter and depth to this.
+    includeAll(path: 'include', relativeToChangelogFile: true, errorIfMissingOrEmpty: false)
 
     //TODO figure out what properties are all about
     clobType = 0

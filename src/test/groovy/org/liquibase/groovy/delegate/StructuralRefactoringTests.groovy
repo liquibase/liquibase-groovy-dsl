@@ -392,6 +392,8 @@ END;"""
         assertNull changes[0].tablespace
         assertNull changes[0].tableName
         assertNull changes[0].remarks
+        assertNull changes[0].tableType
+        assertNull changes[0].ifNotExists
         assertNotNull changes[0].resourceAccessor
 
         def columns = changes[0].columns
@@ -411,7 +413,9 @@ END;"""
                     schemaName: 'schema',
                     tablespace: 'oracle_tablespace',
                     tableName: 'monkey',
-                    remarks: 'angry') {
+                    remarks: 'angry',
+                    tableType: 'rhesus',
+                    ifNotExists: true) {
                 column(name: 'status', type: 'varchar(100)')
                 column(name: 'id', type: 'int')
             }
@@ -427,6 +431,8 @@ END;"""
         assertEquals 'oracle_tablespace', changes[0].tablespace
         assertEquals 'monkey', changes[0].tableName
         assertEquals 'angry', changes[0].remarks
+        assertEquals 'rhesus', changes[0].tableType
+        assertTrue changes[0].ifNotExists
         assertNotNull changes[0].resourceAccessor
 
         def columns = changes[0].columns
@@ -785,6 +791,7 @@ END;"""
         assertNull changes[0].catalogName
         assertNull changes[0].schemaName
         assertNull changes[0].viewName
+        assertNull changes[0].ifExists
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
@@ -798,7 +805,8 @@ END;"""
             dropView(
                     catalogName: 'catalog',
                     schemaName: 'schema',
-                    viewName: 'fail_view'
+                    viewName: 'fail_view',
+                    ifExists: true
             )
         }
 
@@ -810,6 +818,7 @@ END;"""
         assertEquals 'catalog', changes[0].catalogName
         assertEquals 'schema', changes[0].schemaName
         assertEquals 'fail_view', changes[0].viewName
+        assertTrue changes[0].ifExists
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }

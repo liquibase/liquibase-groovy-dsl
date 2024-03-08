@@ -13,6 +13,7 @@
  */
 package org.liquibase.groovy.delegate
 
+import liquibase.change.visitor.AddColumnChangeVisitor
 import liquibase.changelog.ChangeLogParameters
 import liquibase.changelog.DatabaseChangeLog
 import liquibase.database.ObjectQuotingStrategy
@@ -51,6 +52,9 @@ class DatabaseChangeLogDelegateTests {
     static final EMPTY_CHANGELOG = "${ROOT_CHANGELOG_PATH}/empty-changelog.groovy"
     static final SIMPLE_CHANGELOG = "${ROOT_CHANGELOG_PATH}/simple-changelog.groovy"
     static final FULL_CHANGELOG = "${ROOT_CHANGELOG_PATH}/full-changelog.groovy"
+    // This one is not a real file, but it looks like a legit file.  It is used by tests that
+    // build changelogs on the fly.
+    static final MOCK_CHANGELOG = "${ROOT_CHANGELOG_PATH}/mock-changelog.groovy"
 
     def resourceAccessor
     ChangeLogParserFactory parserFactory
@@ -193,7 +197,7 @@ databaseChangeLog()
         assertFalse changeLog.changeSets[0].alwaysRun
         // the property doesn't match xml or docs.
         assertFalse changeLog.changeSets[0].runOnChange
-        assertEquals ROOT_CHANGELOG_PATH, changeLog.changeSets[0].filePath
+        assertEquals MOCK_CHANGELOG.toString(), changeLog.changeSets[0].filePath
         assertEquals 0, changeLog.changeSets[0].contextFilter.contexts.size()
         assertNull changeLog.changeSets[0].labels
         assertNull changeLog.changeSets[0].dbmsSet
@@ -233,6 +237,7 @@ databaseChangeLog()
                       runOrder: 'last',
                       ignore: true,
                       runWith: 'my_executor',
+                      runWithSpoolFile: 'my.log',
                       filePath: 'file_path') {
                 dropTable(tableName: 'monkey')
             }
@@ -257,6 +262,7 @@ databaseChangeLog()
         assertEquals 'last', changeSet.runOrder
         assertTrue changeSet.ignore
         assertEquals 'my_executor', changeSet.runWith
+        assertEquals 'my.log', changeSet.runWithSpoolFile
 
         // Did the changeset get the parameters?
         def changeLogParameters = changeSet.changeLogParameters
@@ -291,6 +297,7 @@ databaseChangeLog()
                       runOrder: 'last',
                       ignore: true,
                       runWith: 'my_executor',
+                      runWithSpoolFile: 'my.log',
                       logicalFilePath: 'file_path') {
                 dropTable(tableName: 'monkey')
             }
@@ -314,6 +321,7 @@ databaseChangeLog()
         assertEquals 'last', changeLog.changeSets[0].runOrder
         assertTrue changeLog.changeSets[0].ignore
         assertEquals 'my_executor', changeLog.changeSets[0].runWith
+        assertEquals 'my.log', changeLog.changeSets[0].runWithSpoolFile
     }
 
     /**
@@ -339,6 +347,7 @@ databaseChangeLog()
                       created: 'test_created',
                       runOrder: 'first',
                       runWith: 'my_executor',
+                      runWithSpoolFile: 'my.log',
                       ignore: false) {
                 dropTable(tableName: 'monkey')
             }
@@ -350,7 +359,7 @@ databaseChangeLog()
         assertEquals 'stevesaliman', changeLog.changeSets[0].author
         assertTrue changeLog.changeSets[0].alwaysRun // the property doesn't match xml or docs.
         assertTrue changeLog.changeSets[0].runOnChange
-        assertEquals ROOT_CHANGELOG_PATH, changeLog.changeSets[0].filePath
+        assertEquals MOCK_CHANGELOG.toString(), changeLog.changeSets[0].filePath
         assertEquals 'testing', changeLog.changeSets[0].contextFilter.contexts.toArray()[0]
         assertEquals 'test_label', changeLog.changeSets[0].labels.toString()
         assertEquals 'mysql', changeLog.changeSets[0].dbmsSet.toArray()[0]
@@ -362,6 +371,7 @@ databaseChangeLog()
         assertEquals 'first', changeLog.changeSets[0].runOrder
         assertFalse changeLog.changeSets[0].ignore
         assertEquals 'my_executor', changeLog.changeSets[0].runWith
+        assertEquals 'my.log', changeLog.changeSets[0].runWithSpoolFile
     }
 
     /**
@@ -428,7 +438,6 @@ databaseChangeLog()
         assertEquals 1, preconditions.size()
         assertTrue preconditions[0] instanceof DBMSPrecondition
         assertEquals 'mysql', preconditions[0].type
-
     }
 
     /**
@@ -549,17 +558,39 @@ databaseChangeLog()
     }
 
     /**
-     * Try including a property from a file that doesn't exist.
+     * Try including a property from a file that doesn't exist, and we want to treat missing files
+     * as an error.  Expect an exception.
      */
     @Test(expected = ChangeLogParseException)
     void propertyFromInvalidFile() {
+        def changeLog = buildChangeLog {
+            property(file: "${TMP_CHANGELOG_DIR}/bad.properties", errorIfMissing: true)
+        }
+    }
+
+    /**
+     * Try including a property from a file that doesn't exist, but we want to ignore errors.
+     */
+    void propertyFromInvalidFileIgnoreError() {
+        def changeLog = buildChangeLog {
+            property(file: "${TMP_CHANGELOG_DIR}/bad.properties", errorIfMissing: false)
+        }
+    }
+
+    /**
+     * Try including a property from a file that doesn't exist and we don't specify the
+     * errorIfMissing attribute.  Expect an exception to prove the errors are the default.
+     */
+    @Test(expected = ChangeLogParseException)
+    void propertyFromInvalidFileDefault() {
         def changeLog = buildChangeLog {
             property(file: "${TMP_CHANGELOG_DIR}/bad.properties")
         }
     }
 
     /**
-     * Try including a property from a file when we don't have a dbms or context.
+     * Try including a property from a file when we don't have a dbms or context.  For this test, we
+     * will also try to use a relative file.
      */
     @Test
     void propertyFromFilePartial() {
@@ -568,9 +599,11 @@ emotion=angry
 """)
         propertyFile = propertyFile.path
         propertyFile = propertyFile.replaceAll("\\\\", "/")
+        // Now make it relative - add 1 to the index to eat the "/"
+        propertyFile = propertyFile.substring(ROOT_CHANGELOG_PATH.length() +1)
 
         def changeLog = buildChangeLog {
-            property(file: "${propertyFile}")
+            property(file: "${propertyFile}", relativeToChangelogFile: true)
         }
 
 
@@ -602,7 +635,7 @@ emotion=angry
         propertyFile = propertyFile.replaceAll("\\\\", "/")
 
         def changeLog = buildChangeLog {
-            property(file: "${propertyFile}", dbms: 'mysql', contextFilter: 'test', labels: 'test_label')
+            property(file: "${propertyFile}", relativeToChangelogFile: false, dbms: 'mysql', contextFilter: 'test', labels: 'test_label')
         }
 
         // change log parameters are not exposed through the API, so get them using reflection.
@@ -620,19 +653,122 @@ emotion=angry
     }
 
     /**
+     * Try removing a property from changes when there is an invalid parameter in the map.  Expect
+     * an exception.  This test needs the dbms to match the changelog parameters.
+     */
+    @Test(expected = ChangeLogParseException)
+    void removeChangeSetPropertyInvalidParameter() {
+        def params = new ChangeLogParameters()
+        params.database = 'h2'
+
+        buildChangeLog(params) {
+            removeChangeSetProperty(change: 'addColumn',
+                                    dbms: 'h2',
+                                    remove: 'afterColumn',
+                                    invalid: 'value')
+        }
+    }
+
+    /**
+     * Try removing a property from changes when we have an invalid change type.  Expect an
+     * exception.  This test needs the dbms to match the changelog parameters.
+     */
+    @Test(expected = ChangeLogParseException)
+    void removeChangeSetPropertyInvalidChange() {
+        // Set the database against which the changelog will run
+        def params = new ChangeLogParameters()
+        params.database = 'h2'
+
+        buildChangeLog(params) {
+            removeChangeSetProperty(change: 'invalidChange',
+                    dbms: 'h2',
+                    remove: 'afterColumn')
+        }
+    }
+
+    /**
+     * Try removing a property from changes when we are missing the dbms.  Expect an exception.
+     */
+    @Test(expected = ChangeLogParseException)
+    void removeChangeSetPropertyNoDbms() {
+        // Set the database against which the changelog will run
+        def params = new ChangeLogParameters()
+        params.database = 'h2'
+
+        buildChangeLog(params) {
+            removeChangeSetProperty(change: 'addColumn',
+                                    remove: 'afterColumn')
+        }
+    }
+
+    /**
+     * Try removing a property from changes when we are missing the "remove" parameter.  Expect an
+     * exception.  This test needs the dbms to match the changelog parameters.
+     */
+    @Test(expected = ChangeLogParseException)
+    void removeChangeSetPropertyNoRemove() {
+        // Set the database against which the changelog will run
+        def params = new ChangeLogParameters()
+        params.database = 'h2'
+
+        buildChangeLog(params) {
+            removeChangeSetProperty(change: 'addColumn',
+                                    dbms: 'h2')
+        }
+    }
+
+    /**
+     * Try removing a property from changes when we are running in the different database than we
+     * are targeting.  Expect the database change log to remain without ChangeVisitors
+     */
+    @Test
+    void removeChangeSetPropertyDatabaseMismatch() {
+        // Set the database against which the changelog will run
+        def params = new ChangeLogParameters()
+        params.database = 'h2'
+
+        def changeLog = buildChangeLog(params) {
+            removeChangeSetProperty(change: 'addColumn',
+                                    dbms: 'mysql',
+                                    remove: 'afterColumn')
+        }
+
+        assertEquals 0, changeLog.changeSets.size()
+        assertEquals 0, changeLog.changeVisitors.size()
+    }
+
+    /**
+     * Try removing a property from changes when we are running in the same database we are
+     * targeting.  Expect the database change log to gain a ChangeVisitor
+     */
+    @Test
+    void removeChangeSetPropertyDatabaseMatches() {
+        // Set the database against which the changelog will run
+        def params = new ChangeLogParameters()
+        params.database = 'h2'
+
+        def changeLog = buildChangeLog(params) {
+            removeChangeSetProperty(change: 'addColumn',
+                                    dbms: 'h2',
+                                    remove: 'afterColumn')
+        }
+
+        assertEquals 0, changeLog.changeSets.size()
+        assertEquals 1, changeLog.changeVisitors.size()
+        def visitor = changeLog.changeVisitors[0]
+        assertTrue visitor instanceof AddColumnChangeVisitor
+        assertEquals 1, visitor.dbms.size()
+        assertEquals 'h2', visitor.dbms[0]
+        assertEquals 'afterColumn', visitor.remove
+    }
+
+    /**
      * Helper method that builds a changeSet from the given closure.  Tests will use this to test
      * parsing the various closures that make up the Groovy DSL.
      * @param closure the closure containing changes to parse.
      * @return the changeSet, with parsed changes from the closure added.
      */
     private def buildChangeLog(Closure closure) {
-//		def changelog = new DatabaseChangeLog(ROOT_CHANGELOG_PATH)
-//		changelog.changeLogParameters = new ChangeLogParameters()
-//		closure.delegate = new DatabaseChangeLogDelegate(changelog)
-//		closure.delegate.resourceAccessor = resourceAccessor
-//		closure.resolveStrategy = Closure.DELEGATE_FIRST
-//		closure.call()
-//		return changelog
         return buildChangeLog(null, closure)
     }
 
@@ -643,7 +779,7 @@ emotion=angry
      * @return the changeSet, with parsed changes from the closure added.
      */
     private def buildChangeLog(ChangeLogParameters parameters, Closure closure) {
-        def changelog = new DatabaseChangeLog(ROOT_CHANGELOG_PATH)
+        def changelog = new DatabaseChangeLog(MOCK_CHANGELOG)
         if ( parameters == null ) {
             changelog.changeLogParameters = new ChangeLogParameters()
         } else {

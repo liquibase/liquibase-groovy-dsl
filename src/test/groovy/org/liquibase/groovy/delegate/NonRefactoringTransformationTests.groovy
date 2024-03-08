@@ -610,7 +610,8 @@ class NonRefactoringTransformationTests extends ChangeSetTests {
                     tableName: 'monkey',
                     columnName: 'emotion',
                     remarks: 'some helpful message',
-                    columnDataType: 'varchar(100)'
+                    columnDataType: 'varchar(100)',
+                    columnParentType: 'VIEW'
             )
         }
 
@@ -622,6 +623,7 @@ class NonRefactoringTransformationTests extends ChangeSetTests {
         assertEquals 'emotion', changeSet.changes[0].columnName
         assertEquals 'some helpful message', changeSet.changes[0].remarks
         assertEquals 'varchar(100)', changeSet.changes[0].columnDataType
+        assertEquals 'VIEW', changeSet.changes[0].columnParentType
         assertNotNull changeSet.changes[0].resourceAccessor
         assertNoOutput()
     }

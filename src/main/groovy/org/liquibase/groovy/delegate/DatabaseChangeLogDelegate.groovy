@@ -17,11 +17,14 @@ package org.liquibase.groovy.delegate
 import liquibase.ContextExpression
 import liquibase.LabelExpression
 import liquibase.Labels
+import liquibase.change.visitor.ChangeVisitor
+import liquibase.change.visitor.ChangeVisitorFactory
 import liquibase.changelog.ChangeSet
+import liquibase.changelog.DatabaseChangeLog
 import liquibase.changelog.IncludeAllFilter
+import liquibase.database.DatabaseList
 import liquibase.database.ObjectQuotingStrategy
 import liquibase.exception.ChangeLogParseException
-import liquibase.resource.FileSystemResourceAccessor
 
 /**
  * This class is the delegate for the {@code databaseChangeLog} element.  It is the starting point
@@ -33,12 +36,10 @@ class DatabaseChangeLogDelegate {
 	def databaseChangeLog
 	def params
 	def resourceAccessor
-	def absoluteResourceAccessor = new FileSystemResourceAccessor(new File("/"))
 
 	DatabaseChangeLogDelegate(databaseChangeLog) {
 		this([:], databaseChangeLog)
 	}
-
 
 	DatabaseChangeLogDelegate(Map params, databaseChangeLog) {
 		this.params = params
@@ -95,7 +96,8 @@ class DatabaseChangeLogDelegate {
 				'created',
 				'runOrder',
 				'ignore',
-				'runWith'
+				'runWith',
+                'runWithSpoolFile'
 		]
 		if (unsupportedKeys.size() > 0) {
 			throw new ChangeLogParseException("ChangeSet '${params.id}': ${unsupportedKeys.toArray()[0]} is not a supported ChangeSet attribute")
@@ -117,24 +119,25 @@ class DatabaseChangeLogDelegate {
 		if ( params.containsKey('logicalFilePath') ) {
 			filePath = params.logicalFilePath
 		}
-        // Liquiase 4.16 deprecated "context" in favor of "contextFilter", but it still supports
+        // Liquibase 4.16 deprecated "context" in favor of "contextFilter", but it still supports
         // both.  A null here is fine.
         def contextFilter = params.contextFilter? params.contextFilter : params.context
 
         def changeSet = new ChangeSet(
-				DelegateUtil.expandExpressions(params.id, databaseChangeLog),
-				DelegateUtil.expandExpressions(params.author, databaseChangeLog),
-				DelegateUtil.parseTruth(params.runAlways, false),
-				DelegateUtil.parseTruth(params.runOnChange, false),
-				filePath,
-				DelegateUtil.expandExpressions(contextFilter, databaseChangeLog),
-				DelegateUtil.expandExpressions(params.dbms, databaseChangeLog),
-				DelegateUtil.expandExpressions(params.runWith, databaseChangeLog),
-				DelegateUtil.parseTruth(params.runInTransaction, true),
-				objectQuotingStrategy,
-				databaseChangeLog)
+                DelegateUtil.expandExpressions(params.id, databaseChangeLog),
+                DelegateUtil.expandExpressions(params.author, databaseChangeLog),
+                DelegateUtil.parseTruth(params.runAlways, false),
+                DelegateUtil.parseTruth(params.runOnChange, false),
+                filePath,
+                DelegateUtil.expandExpressions(contextFilter, databaseChangeLog),
+                DelegateUtil.expandExpressions(params.dbms, databaseChangeLog),
+                DelegateUtil.expandExpressions(params.runWith, databaseChangeLog),
+                DelegateUtil.expandExpressions(params.runWithSpoolFile, databaseChangeLog),
+                DelegateUtil.parseTruth(params.runInTransaction, true),
+                objectQuotingStrategy,
+                databaseChangeLog)
 
-		changeSet.changeLogParameters = databaseChangeLog.changeLogParameters
+        changeSet.changeLogParameters = databaseChangeLog.changeLogParameters
 
 		if ( params.containsKey('failOnError') ) {
 			changeSet.failOnError = DelegateUtil.parseTruth(params.failOnError, false)
@@ -175,28 +178,34 @@ class DatabaseChangeLogDelegate {
 	 */
 	void include(Map params = [:]) {
 		// validate parameters.\
-		def unsupportedKeys = params.keySet() - ['file', 'relativeToChangelogFile', 'context', 'contextFilter', 'labels', 'ignore']
+		def unsupportedKeys = params.keySet() - [
+                'file',
+                'relativeToChangelogFile',
+                'errorIfMissing',
+                'context',
+                'contextFilter',
+                'labels',
+                'ignore']
 		if ( unsupportedKeys.size() > 0 ) {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'include' element.")
 		}
 
 		def relativeToChangelogFile = DelegateUtil.parseTruth(params.relativeToChangelogFile, false)
-		def absoluteFile = params.file.startsWith('/')
+		def errorIfMissing = DelegateUtil.parseTruth(params.errorIfMissing, false)
 
 	   	def fileName = databaseChangeLog
 			    .changeLogParameters
 			    .expandExpressions(params.file, databaseChangeLog)
         def context = params.contextFilter? params.contextFilter : params.context
 		def includeContexts = new ContextExpression(context)
-		def labels = new LabelExpression(params.labels)
+		def labels = new Labels(params.labels)
 		def ignore = DelegateUtil.parseTruth(params.ignore, false)
-		if ( absoluteFile ) {
-			databaseChangeLog.include(fileName, relativeToChangelogFile, absoluteResourceAccessor,
-					includeContexts, labels, ignore, false)
-		} else {
-			databaseChangeLog.include(fileName, relativeToChangelogFile, resourceAccessor,
-					includeContexts, labels, ignore, false)
-		}
+
+        // The Resource Accessor we need to use depends on whether we are including a relative file
+        // or an absolute file, and which version of Liquibase we're using.  For now, we'll assume
+        // that we have a relative include, which uses the resource accessor we've been given.
+        databaseChangeLog.include(fileName, relativeToChangelogFile, errorIfMissing,
+                resourceAccessor, includeContexts, labels, ignore, DatabaseChangeLog.OnUnknownFileFormat.FAIL)
 	}
 
 	/**
@@ -205,7 +214,20 @@ class DatabaseChangeLogDelegate {
 	 */
 	void includeAll(Map params = [:]) {
 		// validate parameters.
-		def unsupportedKeys = params.keySet() - ['path', 'relativeToChangelogFile', 'errorIfMissingOrEmpty', 'resourceComparator', 'filter', 'context', 'contextFilter', 'labels', 'ignore']
+		def unsupportedKeys = params.keySet() - [
+                'path',
+                'relativeToChangelogFile',
+                'errorIfMissingOrEmpty',
+                'resourceComparator',
+                'filter',
+                'context',
+                'contextFilter',
+                'labels',
+                'ignore',
+                'minDepth',
+                'maxDepth',
+                'endsWithFilter'
+        ]
 		if (unsupportedKeys.size() > 0) {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'includeAll' element.")
 		}
@@ -215,10 +237,12 @@ class DatabaseChangeLogDelegate {
         def context = params.contextFilter? params.contextFilter : params.context
         def includeContexts = new ContextExpression(context)
 		def ignore = DelegateUtil.parseTruth(params.ignore, false)
-		def labels = new LabelExpression(params.labels)
+		def labels = new Labels(params.labels)
+        def minDepth = params.minDepth? params.minDepth : 0
+        def maxDepth = params.maxDepth? params.maxDepth : Integer.MAX_VALUE // recurse by default
+        def endsWithFilter = params.endsWithFilter? params.endsWithFilter: ".groovy" // *.groovy by default
 
-		// Set up the resource comparator.  If one is not given, we'll use the
-		// standard one.
+        // Set up the resource comparator.  If one is not given, we'll use the standard one.
 		Comparator<String> resourceComparator = getStandardChangeLogComparator()
 		if ( params.resourceComparator ) {
 			def comparatorName = databaseChangeLog
@@ -235,22 +259,18 @@ class DatabaseChangeLogDelegate {
 			}
 		}
 
-		// Set up the filter.  We always want to filter out non-groovy files,
-		// but the user may want to supply one of their own in addition to the
-		// standard groovy filter.
-		IncludeAllFilter resourceFilter = null
+		// Initialize the filter, if we have one.
+		IncludeAllFilter filter = null
 		if ( params.filter ) {
 			def filterName = databaseChangeLog
 					.changeLogParameters
 					.expandExpressions(params.filter, databaseChangeLog)
 			try {
-				resourceFilter = (IncludeAllFilter) Class.forName(filterName).newInstance()
+				filter = (IncludeAllFilter) Class.forName(filterName).newInstance()
 			} catch (InstantiationException|IllegalAccessException|ClassNotFoundException|ClassCastException e) {
 				throw new ChangeLogParseException("DatabaseChangeLog: '${filterName}' is not a valid resource filter.  Does the class exist, and does it implement IncludeAllFilter?")
 			}
 		}
-
-		def groovyFilter = new GroovyOnlyResourceFilter(userFilter: resourceFilter)
 
 		def pathName = params.path
 		if ( pathName == null ) {
@@ -267,10 +287,20 @@ class DatabaseChangeLogDelegate {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${pathName}' contains an invalid property in an 'includeAll' element.")
 		}
 
-		loadAll(pathName, relativeToChangelogFile, groovyFilter,
-				errorIfMissingOrEmpty, resourceComparator, resourceAccessor,
-				includeContexts, labels, ignore)
-	}
+        databaseChangeLog.includeAll(pathName,
+                relativeToChangelogFile,
+                filter,
+                errorIfMissingOrEmpty,
+                resourceComparator,
+                resourceAccessor,
+                includeContexts,
+                labels,
+                ignore,
+                minDepth,
+                maxDepth,
+                endsWithFilter,
+                null)
+    }
 
 	/**
 	 * Process nested preConditions elements in a database change log.
@@ -287,7 +317,18 @@ class DatabaseChangeLogDelegate {
 	 */
 	void property(Map params = [:]) {
 		// Start by validating input
-		def unsupportedKeys = params.keySet() - ['name', 'value', 'context', 'contextFilter', 'labels', 'dbms', 'global', 'file']
+		def unsupportedKeys = params.keySet() - [
+                'name',
+                'value',
+                'context',
+                'contextFilter',
+                'labels',
+                'dbms',
+                'global',
+                'file',
+                'relativeToChangelogFile',
+                'errorIfMissing',
+        ]
 		if (unsupportedKeys.size() > 0) {
 			throw new ChangeLogParseException("DababaseChangeLog: ${unsupportedKeys.toArray()[0]} is not a supported property attribute")
 		}
@@ -314,17 +355,60 @@ class DatabaseChangeLogDelegate {
 			changeLogParameters.set(params['name'], params['value'], context as ContextExpression, labels as Labels, dbms, global, databaseChangeLog)
 		} else {
 			String propFile = params['file']
+            def relativeTo = null // Default to a path relative to the working directory
+            if ( DelegateUtil.parseTruth(params['relativeToChangelogFile'], false) ) {
+                relativeTo = databaseChangeLog.physicalFilePath
+            }
+            def errorIfMissing = DelegateUtil.parseTruth(params['errorIfMissing'], true)
 			def props = new Properties()
-			def stream = resourceAccessor.openStream(null, propFile)
-			if (!stream) {
-				throw new ChangeLogParseException("Unable to load file with properties: ${params['file']}")
-			}
-			props.load(stream)
-			props.each { k, v ->
-				changeLogParameters.set(k, v, context as ContextExpression, labels as Labels, dbms, global, databaseChangeLog)
-			}
+
+			def stream = resourceAccessor.openStream(relativeTo, propFile)
+			if ( stream ) {
+                props.load(stream)
+                props.each { k, v ->
+                    changeLogParameters.set(k, v, context as ContextExpression, labels as Labels, dbms, global, databaseChangeLog)
+                }
+            } else if ( errorIfMissing ) {
+                throw new ChangeLogParseException("Unable to load file with properties: ${params['file']}")
+            }
+
 		}
 	}
+
+    /**
+     * Process nested removeChangeSetProperty elements in a changelog.
+     * @param params the attributes of the removeChangeSetProperty change.
+     */
+    def removeChangeSetProperty(Map params = [:]) {
+        // Start by validating input
+        def unsupportedKeys = params.keySet() - [
+                'change',
+                'dbms',
+                'remove'
+        ]
+        if (unsupportedKeys.size() > 0) {
+            throw new ChangeLogParseException("DababaseChangeLog: ${unsupportedKeys.toArray()[0]} is not a supported property attribute")
+        }
+
+        if ( !params.dbms || !params.remove ) {
+            throw new ChangeLogParseException("DababaseChangeLog: missing value for the 'dbms' or 'remove' parameter")
+        }
+
+        def currentDb = databaseChangeLog.changeLogParameters.database
+        if ( !DatabaseList.definitionMatches(params.dbms, currentDb, false) ) {
+            // Log it?
+            return
+        }
+
+        ChangeVisitor changeVisitor = ChangeVisitorFactory.getInstance().create(params.change)
+        if ( !changeVisitor ) {
+            throw new ChangeLogParseException("DababaseChangeLog: ${params.change} is not a valid change type")
+        }
+
+        changeVisitor.dbms = params.dbms.split(',')
+        changeVisitor.remove = params.remove
+        databaseChangeLog.changeVisitors.add(changeVisitor)
+    }
 
 	def propertyMissing(String name) {
 		def changeLogParameters = databaseChangeLog.changeLogParameters
@@ -345,86 +429,14 @@ class DatabaseChangeLogDelegate {
 		throw new ChangeLogParseException("DatabaseChangeLog: '${name}' is not a valid element of a DatabaseChangeLog")
 	}
 
-
-	/**
-	 * Helper class to load all the changesets in an included directory.  This
-	 * method is basically a copy of the Liquibase 3.6.1
-	 * {@code DatabaseChangeLog.includeAll} method, except that it fixes the
-	 * paths of included resources before calling the liquibase
-	 * {@code DatabaseChangeLog.include} method.  This is needed to work around
-	 * a bug in Liquibase where filenames are always converted to absolute paths,
-	 * which is undesirable.
-	 * @param pathName the name of the directory whose resources we're including
-	 * @param isRelativeToChangelogFile whether or not the pathName is
-	 *        relative to the original changelog
-	 * @param resourceFilter a filter through which to run each file name.  This
-	 *        filter can decide whether or not a given file should be processed.
-	 * @param errorIfMissingOrEmpty whether or not we should stop parsing if
-	 *        the given directory is empty
-	 * @param resourceComparator a comparator to use for sorting filenames.
-	 * @param resourceAccessor the accessor we should use to find included
-	 *        resources
-	 * @param includeContexts the context(s) to associate with all the changes
-	 *        in the included changelog
-	 */
-	private def loadAll(pathName, isRelativeToChangelogFile, resourceFilter,
-	                    errorIfMissingOrEmpty, resourceComparator,
-	                    resourceAccessor, includeContexts, labels, ignore) {
-		try {
-			pathName = pathName.replace('\\', '/')
-
-			if ( !(pathName.endsWith("/")) ) {
-				pathName = pathName + '/'
-			}
-
-			String relativeTo = null
-			// If whe're including directories relative to the changelog, we'll
-			// need to tell the ResourceAccessor to use the changelog's path
-			// instead of the working directory's path.
-			if ( isRelativeToChangelogFile ) {
-				relativeTo = databaseChangeLog.getPhysicalFilePath()
-			}
-
-			Set<String> unsortedResources = null;
-			try {
-				unsortedResources = resourceAccessor.list(relativeTo, pathName, true, true, false)
-			} catch (FileNotFoundException e) {
-				if ( errorIfMissingOrEmpty ) {
-					throw e;
-				}
-			}
-			SortedSet<String> resources = new TreeSet<>(resourceComparator)
-			if ( unsortedResources != null ) {
-				for ( String resourcePath : unsortedResources ) {
-					if ( (resourceFilter == null) || resourceFilter.include(resourcePath) ) {
-						resources.add(resourcePath)
-					}
-				}
-			}
-
-			if ( resources.isEmpty() && errorIfMissingOrEmpty ) {
-				throw new ChangeLogParseException(
-						"DatabaseChangelog: Could not find directory or directory was empty for includeAll '${pathName}'")
-			}
-
-			for ( String resourceName : resources ) {
-				// Liquibase's resource accessor will return files relative to
-				// the working directory, even if we told it to look relative
-				// to the working directory, so force the "relativeToChangelog"
-				// flag to false when we process the resource.
-				databaseChangeLog.include(resourceName, false, resourceAccessor,
-						includeContexts, labels, ignore, false)
-			}
-		} catch (Exception e) {
-			throw new ChangeLogParseException(e)
-		}
-	}
-
+    /**
+     * @return a default Comparator that sorts by filename.
+     */
 	private Comparator<String> getStandardChangeLogComparator() {
 		return new Comparator<String>() {
 			@Override
 			public int compare(String o1, String o2) {
-				return o1. compareTo(o2);
+				return o1.compareTo(o2);
 			}
 		};
 	}

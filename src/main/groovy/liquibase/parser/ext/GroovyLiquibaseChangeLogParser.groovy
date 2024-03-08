@@ -21,7 +21,6 @@ import liquibase.resource.ResourceAccessor
 import liquibase.exception.ChangeLogParseException
 
 import org.liquibase.groovy.delegate.DatabaseChangeLogDelegate
-import org.codehaus.groovy.control.CompilerConfiguration
 
 /**
  * This is the main parser class for the Liquibase Groovy DSL.  It is the integration point to

@@ -1,8 +1,0 @@
-<!-- This file should excluded because it is not a groovy file -->
-<databaseChangeLog>
-  <changeSet author="ssaliman" id="included-change-set-3">
-    <addColumn tableName="monkey">
-      <column name="gender" type="varchar(1)"/>
-    </addColumn>
-  </changeSet>
-</databaseChangeLog>
