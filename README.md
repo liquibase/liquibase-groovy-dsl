@@ -23,6 +23,31 @@ liquibaseRuntime "org.apache.groovy:groovy-sql:4.0.5"
 ```
 
 ## News
+### March 12, 2024
+Release 4.0.0 adds support for Liquibase 4.26, and removed official support for versions prior to
+that.  Liquibase has had a lot of internal API changes between 6.16.1 and 4.26, and the plugin will
+most likely not work with older versions.
+
+**This release has breaking changes**
+
+- The new version removes support for absolute paths.  Liquibase hasn't supported them in a long
+  time, so the Groovy DSL no longer does either.  If, for some reason, you are using absolute
+  paths in an `include` or `includeAll`, they will need to be fixed, and you will most likely need
+  to fix the `databasechangelog` entries as well. 
+
+- The Groovy DSL used to "fix" the path of files that were included relative to the changelog.  All
+  paths are now going to be relative to the working directory, which is how the other Liquibase
+  parsers work.  This means that if you are using `relativeToChangeLog` in any of your `include` or
+  `includeAll` methods, you'll have to fix the paths in the `databasechangelog` table to be relative
+  to the working directory instead of the changelog.
+
+- The Groovy DSL used to have a default filter for `includeAll`.  None of the other parsers did this
+  so we no longer do.  If you are doing an `includeAll` on a directory that has more than just the
+  groovy files you want to include, this will be a breaking change.  Adding 
+  `endsWithFilter: ".groovy"` to the `includeAll` will fix this issue.
+
+In addition, the Groovy DSL doesn't support the Liquibase PRO modifyChangeSets change.
+
 ### March 12, 2023
 Release 3.0.3 adds support for Liquibase up to version 4.16.1, and it adds support for Groovy 4
 (#53), with thanks to Bjørn Vester (@bjornvester)

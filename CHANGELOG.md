@@ -1,3 +1,17 @@
+Changes for 4.0.0
+=================
+
+- Added support for Liquibase 4.26, removed support for previous versions.
+
+- Dropped support for absolute paths for `includeAll`.
+
+- Removed the default filter for `includeAll`.
+
+- Stopped "fixing" the paths when using `relativeToChangeLog` in an `includeAll`.
+
+- Removed the check for `constraints` that have a closure.  We never supported it, just had a nice
+  error message.
+
 Changes for 3.0.3
 =================
 - Updated Gradle to version 7.6.1 and moved all the build properties to gradle.properties.

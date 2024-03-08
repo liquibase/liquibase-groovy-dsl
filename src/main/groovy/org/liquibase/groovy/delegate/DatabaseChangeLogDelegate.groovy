@@ -235,7 +235,7 @@ class DatabaseChangeLogDelegate {
 		def labels = new Labels(params.labels)
         def minDepth = params.minDepth? params.minDepth : 0
         def maxDepth = params.maxDepth? params.maxDepth : Integer.MAX_VALUE // recurse by default
-        def endsWithFilter = params.endsWithFilter? params.endsWithFilter: ".groovy" // *.groovy by default
+        def endsWithFilter = params.endsWithFilter? params.endsWithFilter: "" // LB doesn't like null
 
         // Set up the resource comparator.  If one is not given, we'll use the standard one.
 		Comparator<String> resourceComparator = getStandardChangeLogComparator()
@@ -426,14 +426,12 @@ class DatabaseChangeLogDelegate {
 	}
 
     /**
-     * @return a default Comparator that sorts by filename.
+     * @return a default Comparator that sorts by path, which is the default in Liquibase.
      */
 	private Comparator<String> getStandardChangeLogComparator() {
-		return new Comparator<String>() {
-			@Override
-			public int compare(String o1, String o2) {
-				return o1.compareTo(o2);
-			}
-		};
+        // Liquibase won't let us send a null comparator, but doesn't expose the default to us.  So
+        // we'll just return what Liquibase uses.  It might be worth DatabaseChangeLog from time
+        // to time to make sure they don't change this out from under us.
+        return Comparator.comparing(o -> o.replace("WEB-INF/classes/", ""))
 	}
 }

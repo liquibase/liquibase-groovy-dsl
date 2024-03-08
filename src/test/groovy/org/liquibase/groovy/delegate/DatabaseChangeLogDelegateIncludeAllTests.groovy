@@ -45,17 +45,18 @@ class DatabaseChangeLogDelegateIncludeAllTests {
     static final ROOT_CHANGELOG_PATH = "src/test/changelog"
     static final TMP_CHANGELOG_PATH = ROOT_CHANGELOG_PATH + "/tmp"
     static final INCLUDED_CHANGELOG_PATH = TMP_CHANGELOG_PATH + "/include"
-    static final INCLUDED_CHANGELOG_SUB_PATH = TMP_CHANGELOG_PATH + "/include/subdirectory"
+    // The "3-" is important to put it between 2 filenames in the parent.
+    static final INCLUDED_CHANGELOG_SUB_PATH = TMP_CHANGELOG_PATH + "/include/3-subdirectory"
     static final TMP_CHANGELOG_DIR = new File(TMP_CHANGELOG_PATH)
     static final INCLUDED_CHANGELOG_DIR = new File(INCLUDED_CHANGELOG_PATH)
     static final INCLUDED_CHANGELOG_SUB_DIR = new File(INCLUDED_CHANGELOG_SUB_PATH)
     static final ROOT_CHANGE_SET = 'root-change-set'
     // Define the depth of the included changelog.  Liquibase starts at the working directory.
     static final INCLUDED_CHANGELOG_DEPTH=5
-    // constants for 4 included changesets.  The 3rd one is meant to be xml, and therefore
-    // excluded.  The fourth is alphabetically between the first and second, but meant to be in a
-    // subdirectory, and therefore 4th.  These constants need to match the ids in
-    // src/test/resources/include to properly test the classpath includes.
+    // constants for 4 included changesets.  The 3rd one is meant to be sql, to test filters.  The
+    // fourth is alphabetically between the first and second, but meant to be in a subdirectory,
+    // and therefore 4th.  These constants need to match the ids in src/test/resources/include to
+    // properly test the classpath includes.
     static final FIRST_INCLUDED_CHANGE_SET = 'first-included-change-set'
     static final SECOND_INCLUDED_CHANGE_SET = 'second-included-change-set'
     static final THIRD_INCLUDED_CHANGE_SET = 'third-included-change-set'
@@ -119,9 +120,9 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all files in a directory.  For this test, we want 3 files to make sure we
-     * include them all, and in the right order, with the xml excluded and the subdirectory change
-     * after the base dir changes.  This test makes sure that tokens don't affect paths.
+     * Try including all files in a directory.  For this test, we want 4 files to make sure we
+     * include them all in the right order, with subdirectory change between base dir changes.
+     * This test makes sure that tokens don't affect paths.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
@@ -151,20 +152,21 @@ databaseChangeLog {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
-        assertEquals 4, changeSets.size()
+        assertEquals 5, changeSets.size()
         assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals ROOT_CHANGE_SET, changeSets[3].id
+        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         verifyIncludedPreconditions rootChangeLog
     }
 
     /**
-     * Try including all files in a directory.  For this test, we want 3 files to make sure we
-     * include them all, and in the right order, with the xml excluded and the subdirectory change
-     * after the base dir changes.  This test does things with relative paths so we can verify that
-     * the DSL preserves the relative paths instead of converting them to absolute paths.
+     * Try including all files in a directory.  For this test, we want 4 files to make sure we
+     * include them all in the right order, with subdirectory change between base dir changes.
+     * This test does things with relative paths so we can verify that the DSL preserves the
+     * relative paths instead of converting them to absolute paths.
      * <p>
      * This test will also make sure we can handle contextFilters properly, by setting both a
      * contextFilter and a context to make sure we get the contextFilter.  It also makes sure our
@@ -196,25 +198,20 @@ databaseChangeLog {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
-        assertEquals 4, changeSets.size()
+        assertEquals 5, changeSets.size()
         assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals ROOT_CHANGE_SET, changeSets[3].id
+        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
-        // Check that the paths of the 3 included change sets are relative.  The 4th change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/fourth")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
-
-        // Take a look at the contexts of the changes.  The first 3, came from the included file,
+        // Take a look at the contexts of the changes.  The first 4, came from the included file,
         // and should have contexts.  The 4th one came from the root changelog and should not.
         assertEquals 'myContext', changeSets[0].changeLog.includeContextFilter.toString()
         assertEquals 'myContext', changeSets[1].changeLog.includeContextFilter.toString()
         assertEquals 'myContext', changeSets[2].changeLog.includeContextFilter.toString()
-        assertNull changeSets[3].changeLog.includeContextFilter
+        assertEquals 'myContext', changeSets[3].changeLog.includeContextFilter.toString()
+        assertNull changeSets[4].changeLog.includeContextFilter
 
         verifyIncludedPreconditions rootChangeLog
     }
@@ -246,26 +243,20 @@ databaseChangeLog {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
-        assertEquals 4, changeSets.size()
+        assertEquals 5, changeSets.size()
         assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals ROOT_CHANGE_SET, changeSets[3].id
+        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
-        // Make sure we actually started with an absolute path Check that the paths of the 3
-        // included change sets are relative.  The 4th change set did not come from the
-        // "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/fourth")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
-
-        // Take a look at the contexts of the changes.  The first 3, came from the included file,
+        // Take a look at the contexts of the changes.  The first 4, came from the included file,
         // and should have contexts.  The 4th one came from the root changelog and should not.
         assertEquals 'myContext', changeSets[0].changeLog.includeContextFilter.toString()
         assertEquals 'myContext', changeSets[1].changeLog.includeContextFilter.toString()
         assertEquals 'myContext', changeSets[2].changeLog.includeContextFilter.toString()
-        assertNull changeSets[3].changeLog.includeContextFilter
+        assertEquals 'myContext', changeSets[3].changeLog.includeContextFilter.toString()
+        assertNull changeSets[4].changeLog.includeContextFilter
 
         verifyIncludedPreconditions rootChangeLog
     }
@@ -298,18 +289,20 @@ databaseChangeLog {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
-        assertEquals 4, changeSets.size()
+        assertEquals 5, changeSets.size()
         assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals ROOT_CHANGE_SET, changeSets[3].id
+        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         // Check that the paths of the 3 included change sets are relative.  The 4th change set did
         // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/fourth")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
+        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/1-first")
+        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/2-second")
+        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/third")
+        assertTrue changeSets[3].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/4-fourth")
+        assertTrue changeSets[4].filePath.startsWith(TMP_CHANGELOG_PATH)
 
         verifyIncludedPreconditions rootChangeLog
     }
@@ -317,7 +310,7 @@ databaseChangeLog {
     /**
      * Try including all files in a directory, but with the deprecated resourceFilter attribute. In
      * the future, this test will go away, but for now, we'll support For this test, we'll repeat
-     * want 2 files, but with a filter that excludes one of them. Test may fail because of unclean
+     * wanting 4 files, but with a filter that excludes 3 of them. Test may fail because of unclean
      * directories.  Fix the other tests first.
      */
     @Test(expected = ChangeLogParseException)
@@ -344,7 +337,7 @@ databaseChangeLog {
 
     /**
      * Try including all files in a directory, but with a resource filter.  For this test, we'll
-     * repeat wanting 3 files, but with a filter that excludes two of them. Test may fail because of
+     * repeat wanting 4 files, but with a filter that excludes 3 of them. Test may fail because of
      * unclean directories. Fix the other tests first.
      */
     @Test
@@ -463,23 +456,20 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()  // from the first file, and the changelog itself.
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
-
-        assertTrue changeSets[0].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
-        assertTrue changeSets[0].filePath.endsWith("-c.sql")
-        assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
     /**
      * Try including all files in a directory when we provide a custom comparator.  For this test,
      * we'll repeat includeAllRelativeToWorkDir, but with a comparator that sorts the included
-     * changes in reverse alphabetical order.  We still expect 3 files, but this time, they should
+     * changes in reverse alphabetical order.  We still expect 4 files, but this time, they should
      * come in to the changes in reverse order.
      * <p>
-     * This test will also make sure we can handle contexts properly. <p> Note: when other tests
-     * throw exceptions, this test may also fail because of unclean directories.  Fix the other
-     * tests first.
+     * This test will also make sure we can handle contexts properly.
+     * <p>
+     * Note: when other tests throw exceptions, this test may also fail because of unclean
+     * directories.  Fix the other tests first.
      */
     @Test
     void includeAllWithComparator() {
@@ -505,19 +495,13 @@ databaseChangeLog {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
-        assertEquals 4, changeSets.size()
+        assertEquals 5, changeSets.size()
         // Remember, these should come in BACKWARDS because of the comparator.
         assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals ROOT_CHANGE_SET, changeSets[3].id
-
-        // Check that the paths of the 3 included change sets are relative.  The 4th change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/fourth")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
+        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[1].id
+        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         verifyIncludedPreconditions(rootChangeLog)
     }
@@ -608,7 +592,7 @@ databaseChangeLog {
     @Test(expected = LiquibaseException)
     void includeAllEmptyPath() {
         // This file should be excluded by the resource filter.
-        createFileFrom(INCLUDED_CHANGELOG_DIR, 'second', '-2.groovy', """
+        createFileFrom(INCLUDED_CHANGELOG_DIR, 'second', '.groovy', """
 databaseChangeLog {
   changeSet(author: 'ssaliman', id: '${SECOND_INCLUDED_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -645,7 +629,7 @@ databaseChangeLog {
     @Test
     void includeAllEmptyPathIgnoreError() {
         // This file should be excluded by the resource filter.
-        createFileFrom(INCLUDED_CHANGELOG_DIR, 'second', '-2.groovy', """
+        createFileFrom(INCLUDED_CHANGELOG_DIR, 'second', '.groovy', """
 databaseChangeLog {
   changeSet(author: 'ssaliman', id: '${SECOND_INCLUDED_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -707,20 +691,12 @@ databaseChangeLog {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
-        assertEquals 4, changeSets.size()
+        assertEquals 5, changeSets.size()
         assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals ROOT_CHANGE_SET, changeSets[3].id
-
-        // Verify our file paths.  The included changes should have relative paths.  The change from
-        // the root file will have just the name of the file because it was in the root of the
-        // classpath.  Remember, we're using classpaths here, so our relative directories will be
-        // relative to the classpath root.
-        assertTrue changeSets[0].filePath.startsWith('include/first')
-        assertTrue changeSets[1].filePath.startsWith('include/second')
-        assertTrue changeSets[2].filePath.startsWith('include/subdir/fourth')
-        assertTrue changeSets[3].filePath.equals('changelog.groovy')
+        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         verifyIncludedPreconditions rootChangeLog
     }
@@ -756,6 +732,37 @@ databaseChangeLog {
         assertTrue changeSets[1].filePath.equals('filtered-changelog.groovy')
 
         verifyIncludedPreconditions rootChangeLog
+    }
+
+    /**
+     * Try including all files in a classpath directory, but with an ends-with filter. For this
+     * test, we'll have 3 files in the directory, but the filter will only match one of them.
+     * <p>
+     * The change logs can't be created on the fly, it must exist in a directory that is on the
+     * classpath, and we need to replace the resource accessor with one that can load a file from
+     * the classpath.
+     */
+    @Test
+    void includeAllClasspathEndsWithWithFilter() {
+        def rootChangeLogFile = "ends-with-changelog.groovy"
+        resourceAccessor = new ClassLoaderResourceAccessor()
+
+        def parser = parserFactory.getParser(rootChangeLogFile, resourceAccessor)
+        def rootChangeLog = parser.parse(rootChangeLogFile, new ChangeLogParameters(), resourceAccessor)
+
+        assertNotNull rootChangeLog
+        def changeSets = rootChangeLog.changeSets
+        assertNotNull changeSets
+        assertEquals 2, changeSets.size()  // from the first file, and the changelog itself.
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertEquals ROOT_CHANGE_SET, changeSets[1].id
+
+        // Verify our file paths.  The included changes should have relative paths.  The change from
+        // the root file will have just the name of the file because it was in the root of the
+        // classpath.  Remember, we're using classpaths here, so our relative directories will be
+        // relative to the classpath root.
+        assertTrue changeSets[0].filePath.startsWith('include/')
+        assertTrue changeSets[1].filePath.equals('ends-with-changelog.groovy')
     }
 
     /**
@@ -835,12 +842,12 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
 
         // Check that the paths of the included change sets are relative.  The 2nd change set did
         // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/fourth")
+        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/third")
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
@@ -871,20 +878,22 @@ databaseChangeLog {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
-        assertEquals 3, changeSets.size()
+        assertEquals 4, changeSets.size()
         assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals ROOT_CHANGE_SET, changeSets[2].id
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertEquals ROOT_CHANGE_SET, changeSets[3].id
 
         // Check that the paths of the 3 included change sets are relative.  The 4th change set did
         // not come from the "includeAll", but it will be relative.
         assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
         assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith(TMP_CHANGELOG_PATH)
+        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
+        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test, we
-     * expect to exclude the files in the include directory, and only return the one in the
+     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
+     * we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
@@ -911,12 +920,12 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
 
         // Check that the paths of the included change sets are relative.  The 2nd change set did
         // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/fourth")
+        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/third")
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
@@ -947,20 +956,22 @@ databaseChangeLog {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
-        assertEquals 3, changeSets.size()
+        assertEquals 4, changeSets.size()
         assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals ROOT_CHANGE_SET, changeSets[2].id
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertEquals ROOT_CHANGE_SET, changeSets[3].id
 
         // Check that the paths of the 3 included change sets are relative.  The 4th change set did
         // not come from the "includeAll", but it will be relative.
         assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
         assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith(TMP_CHANGELOG_PATH)
+        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
+        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test, we
-     * expect to exclude the files in the include directory, and only return the one in the
+     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
+     * we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
@@ -1023,21 +1034,23 @@ databaseChangeLog {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
-        assertEquals 3, changeSets.size()
+        assertEquals 4, changeSets.size()
         assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals ROOT_CHANGE_SET, changeSets[2].id
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertEquals ROOT_CHANGE_SET, changeSets[3].id
 
         // Check that the paths of the 3 included change sets are relative.  The 4th change set did
         // not come from the "includeAll", but it will be relative.
         assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
         assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith(TMP_CHANGELOG_PATH)
+        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
+        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test, we
-     * expect to exclude the files in the include directory, and only return the one in the
+     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
+     * we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
@@ -1055,12 +1068,12 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
 
         // Check that the paths of the included change sets are relative.  The 2nd change set did
         // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/fourth")
+        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/third")
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
@@ -1082,16 +1095,18 @@ databaseChangeLog {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
-        assertEquals 3, changeSets.size()
+        assertEquals 4, changeSets.size()
         assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals ROOT_CHANGE_SET, changeSets[2].id
+        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertEquals ROOT_CHANGE_SET, changeSets[3].id
 
         // Check that the paths of the 3 included change sets are relative.  The 4th change set did
         // not come from the "includeAll", but it will be relative.
         assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
         assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith(TMP_CHANGELOG_PATH)
+        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
+        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
     /**
      * Helper method that builds a changeSet from the given closure.  Tests will use this to test
@@ -1115,17 +1130,17 @@ databaseChangeLog {
      * <ul>
      * <li>A groovy file that should be considered first, and included first.</li>
      * <li>A groovy file that should be considered second and included second.</li>
-     * <li>An xml file that should be considered third, but should be excluded from the includeAll
-     * because it is not a groovy file.</li>
-     * <li>a groovy file that should be considered fourth.  It is between the first two in the
-     * alphabet, but will still be last because includes should be grouped by directory.
+     * <li>A groovy file that is last in the alphabet, but in a subdirectory that sorts between the
+     * first and fourth files.  This will prove that the default sorting is on the entire path, and
+     * this file will be included third.</li>
+     * <li>a sql file that should be considered fourth. and included fourth</li>
      * </ul>
      * <p>
      * Each file also has a unique letter before the ".groovy" for existing the endsWithFilter.
      * @return the full path of the directory where the files were placed.
      */
     private String createIncludedChangeLogFiles() {
-        createFileFrom(INCLUDED_CHANGELOG_DIR, 'first', '-a.groovy', """
+        createFileFrom(INCLUDED_CHANGELOG_DIR, '1-first', '.groovy', """
 databaseChangeLog {
   preConditions {
     runningAs(username: 'ssaliman')
@@ -1137,7 +1152,7 @@ databaseChangeLog {
 }
 """)
 
-        createFileFrom(INCLUDED_CHANGELOG_DIR, 'second', '-b.groovy', """
+        createFileFrom(INCLUDED_CHANGELOG_DIR, '2-second', '.groovy', """
 databaseChangeLog {
   changeSet(author: 'ssaliman', id: '${SECOND_INCLUDED_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -1147,17 +1162,17 @@ databaseChangeLog {
 }
 """)
 
-        createFileFrom(INCLUDED_CHANGELOG_DIR, 'third', '-c.sql', """
+        createFileFrom(INCLUDED_CHANGELOG_DIR, '4-fourth', '.sql', """
 --liquibase formatted sql
 
---changeset ssaliman:${THIRD_INCLUDED_CHANGE_SET}
+--changeset ssaliman:${FOURTH_INCLUDED_CHANGE_SET}
 alter table monkey add gender varchar(1);
 """)
 
-        // alphabetically in the middle, but in a subdir, placing it last.
-        createFileFrom(INCLUDED_CHANGELOG_SUB_DIR, 'fourth', '-d.groovy', """
+        // alphabetically last, but in a "3-" subdir, placing it third.
+        createFileFrom(INCLUDED_CHANGELOG_SUB_DIR, 'third', '.groovy', """
 databaseChangeLog {
-  changeSet(author: 'ssaliman', id: '${FOURTH_INCLUDED_CHANGE_SET}') {
+  changeSet(author: 'ssaliman', id: '${THIRD_INCLUDED_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'location', type: 'varchar(30)')
     }
