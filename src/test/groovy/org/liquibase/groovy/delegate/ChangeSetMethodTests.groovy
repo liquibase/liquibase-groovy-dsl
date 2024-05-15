@@ -22,9 +22,7 @@ import liquibase.change.core.RawSQLChange
 import liquibase.change.core.UpdateDataChange
 import liquibase.exception.ChangeLogParseException
 import liquibase.exception.RollbackImpossibleException
-import liquibase.resource.FileSystemResourceAccessor
 import org.junit.Test
-import org.junit.Ignore
 import static org.junit.Assert.*
 
 /**

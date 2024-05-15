@@ -16,7 +16,7 @@ package org.liquibase.groovy.delegate
 import org.junit.Test
 import org.junit.Ignore
 import static org.junit.Assert.*
-import liquibase.resource.FileSystemResourceAccessor
+import liquibase.resource.DirectoryResourceAccessor
 
 /**
  * <p></p>
@@ -33,7 +33,7 @@ class GroovyChangeDelegateTests extends ChangeSetTests {
         def validateWasCalled = false
         def changeWasCalled = false
         def rollbackWasCalled = false
-        resourceAccessor = new FileSystemResourceAccessor()
+        resourceAccessor = new DirectoryResourceAccessor()
 
         buildChangeSet {
             groovyChange {

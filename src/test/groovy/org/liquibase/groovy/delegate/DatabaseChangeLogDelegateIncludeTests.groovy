@@ -17,13 +17,14 @@ package org.liquibase.groovy.delegate
 import liquibase.changelog.ChangeLogParameters
 import liquibase.changelog.DatabaseChangeLog
 import liquibase.exception.ChangeLogParseException
+import liquibase.exception.LiquibaseException
 import liquibase.parser.ChangeLogParserFactory
 import liquibase.parser.ext.GroovyLiquibaseChangeLogParser
 import liquibase.precondition.Precondition
 import liquibase.precondition.core.DBMSPrecondition
 import liquibase.precondition.core.PreconditionContainer
 import liquibase.precondition.core.RunningAsPrecondition
-import liquibase.resource.FileSystemResourceAccessor
+import liquibase.resource.DirectoryResourceAccessor
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -42,9 +43,9 @@ import static org.junit.Assert.assertTrue
  */
 class DatabaseChangeLogDelegateIncludeTests {
     // Let's define some paths and directories.  These should all be relative.
-    static final ROOT_CHANGELOG_PATH = "src/test/changelog"
-    static final TMP_CHANGELOG_PATH = ROOT_CHANGELOG_PATH + "/tmp"
-    static final INCLUDED_CHANGELOG_PATH = TMP_CHANGELOG_PATH + "/include"
+    static final String ROOT_CHANGELOG_PATH = "src/test/changelog"
+    static final String TMP_CHANGELOG_PATH = ROOT_CHANGELOG_PATH + "/tmp"
+    public static final String INCLUDED_CHANGELOG_PATH = TMP_CHANGELOG_PATH + "/include"
     static final TMP_CHANGELOG_DIR = new File(TMP_CHANGELOG_PATH)
     static final INCLUDED_CHANGELOG_DIR = new File(INCLUDED_CHANGELOG_PATH)
 
@@ -54,12 +55,12 @@ class DatabaseChangeLogDelegateIncludeTests {
 
     @Before
     void registerParser() {
-        // when Liquibase runs, it gives a FileSystemResourceAccessor based on the absolute path of
+        // when Liquibase runs, it gives a DirectoryResourceAccessor based on the absolute path of
         // the current working directory.  We'll do the same for this test.  We'll make a file for
         // ".", then get that file's absolute path, which produces something like
         // "/some/path/to/dir/.", just like what Liquibase does.
         def f = new File(".")
-        resourceAccessor = new FileSystemResourceAccessor(new File(f.absolutePath))
+        resourceAccessor = new DirectoryResourceAccessor(new File(f.absolutePath))
         parserFactory = ChangeLogParserFactory.instance
         ChangeLogParserFactory.getInstance().register(new GroovyLiquibaseChangeLogParser())
         // make sure we start with clean temporary directories before each test
@@ -91,7 +92,7 @@ class DatabaseChangeLogDelegateIncludeTests {
      * case, the fileName property is not set, so it can't be expanded and the parser will look for
      * a file named '${fileName}.groovy', which of course doesn't exist.
      */
-    @Test(expected = ChangeLogParseException)
+    @Test(expected = LiquibaseException)
     void includeWithInvalidProperty() {
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
@@ -312,7 +313,7 @@ databaseChangeLog {
   preConditions {
     dbms(type: 'mysql')
   }
-  include(file: '../tmp/include/${includedChangeLogFile}', relativeToChangelogFile: true, contextFilter: 'myContext')
+  include(file: './include/${includedChangeLogFile}', relativeToChangelogFile: true, contextFilter: 'myContext')
   changeSet(author: 'ssaliman', id: 'ROOT_CHANGE_SET') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')

@@ -16,13 +16,13 @@ package org.liquibase.groovy
 
 import liquibase.parser.ext.GroovyLiquibaseChangeLogParser
 import liquibase.parser.*
-import liquibase.resource.FileSystemResourceAccessor
+import liquibase.resource.DirectoryResourceAccessor
 
 
 ChangeLogParserFactory.getInstance().register(new GroovyLiquibaseChangeLogParser())
 
 //changeLogFile = 'src/test/changelog/basic-changelog.groovy'
-//resourceAccessor = new FileSystemResourceAccessor(new File('.'))
+//resourceAccessor = new DirectoryResourceAccessor(new File('.'))
 //parser = ChangeLogParserFactory.getInstance().getParser(changeLogFile, resourceAccessor)
 //
 //def changeLog = parser.parse(changeLogFile, null, resourceAccessor)

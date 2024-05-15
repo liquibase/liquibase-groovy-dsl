@@ -21,7 +21,7 @@ import liquibase.change.core.RawSQLChange
 import liquibase.change.core.SQLFileChange
 import liquibase.change.core.ExecuteShellCommandChange
 import liquibase.change.custom.CustomChangeWrapper
-import liquibase.resource.FileSystemResourceAccessor
+import liquibase.resource.DirectoryResourceAccessor
 
 /**
  * This is one of several classes that test the creation of refactoring changes for ChangeSets. This

@@ -15,13 +15,13 @@
 package org.liquibase.groovy.delegate
 
 import liquibase.ContextExpression
-import liquibase.LabelExpression
 import liquibase.Labels
 import liquibase.changelog.ChangeSet
+import liquibase.changelog.DatabaseChangeLog
 import liquibase.changelog.IncludeAllFilter
 import liquibase.database.ObjectQuotingStrategy
 import liquibase.exception.ChangeLogParseException
-import liquibase.resource.FileSystemResourceAccessor
+import liquibase.resource.DirectoryResourceAccessor
 
 /**
  * This class is the delegate for the {@code databaseChangeLog} element.  It is the starting point
@@ -30,10 +30,10 @@ import liquibase.resource.FileSystemResourceAccessor
  * @author Steven C. Saliman
  */
 class DatabaseChangeLogDelegate {
-	def databaseChangeLog
+	var DatabaseChangeLog databaseChangeLog
 	def params
 	def resourceAccessor
-	def absoluteResourceAccessor = new FileSystemResourceAccessor(new File("/"))
+	def absoluteResourceAccessor = new DirectoryResourceAccessor(new File("/"))
 
 	DatabaseChangeLogDelegate(databaseChangeLog) {
 		this([:], databaseChangeLog)
@@ -130,6 +130,7 @@ class DatabaseChangeLogDelegate {
 				DelegateUtil.expandExpressions(contextFilter, databaseChangeLog),
 				DelegateUtil.expandExpressions(params.dbms, databaseChangeLog),
 				DelegateUtil.expandExpressions(params.runWith, databaseChangeLog),
+                null,
 				DelegateUtil.parseTruth(params.runInTransaction, true),
 				objectQuotingStrategy,
 				databaseChangeLog)
@@ -188,14 +189,14 @@ class DatabaseChangeLogDelegate {
 			    .expandExpressions(params.file, databaseChangeLog)
         def context = params.contextFilter? params.contextFilter : params.context
 		def includeContexts = new ContextExpression(context)
-		def labels = new LabelExpression(params.labels)
+		def labels = new Labels(params.labels)
 		def ignore = DelegateUtil.parseTruth(params.ignore, false)
 		if ( absoluteFile ) {
-			databaseChangeLog.include(fileName, relativeToChangelogFile, absoluteResourceAccessor,
-					includeContexts, labels, ignore, false)
+			databaseChangeLog.include(fileName, relativeToChangelogFile, true, absoluteResourceAccessor,
+                    includeContexts, labels, ignore, DatabaseChangeLog.OnUnknownFileFormat.FAIL)
 		} else {
-			databaseChangeLog.include(fileName, relativeToChangelogFile, resourceAccessor,
-					includeContexts, labels, ignore, false)
+			databaseChangeLog.include(fileName, relativeToChangelogFile, true, resourceAccessor,
+                    includeContexts, labels, ignore, DatabaseChangeLog.OnUnknownFileFormat.FAIL)
 		}
 	}
 
@@ -215,7 +216,7 @@ class DatabaseChangeLogDelegate {
         def context = params.contextFilter? params.contextFilter : params.context
         def includeContexts = new ContextExpression(context)
 		def ignore = DelegateUtil.parseTruth(params.ignore, false)
-		def labels = new LabelExpression(params.labels)
+		def labels = new Labels(params.labels)
 
 		// Set up the resource comparator.  If one is not given, we'll use the
 		// standard one.
@@ -412,8 +413,8 @@ class DatabaseChangeLogDelegate {
 				// the working directory, even if we told it to look relative
 				// to the working directory, so force the "relativeToChangelog"
 				// flag to false when we process the resource.
-				databaseChangeLog.include(resourceName, false, resourceAccessor,
-						includeContexts, labels, ignore, false)
+				databaseChangeLog.include(resourceName, false, true, resourceAccessor,
+						includeContexts, labels, ignore, DatabaseChangeLog.OnUnknownFileFormat.SKIP)
 			}
 		} catch (Exception e) {
 			throw new ChangeLogParseException(e)

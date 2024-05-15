@@ -23,7 +23,7 @@ import liquibase.precondition.core.DBMSPrecondition
 import liquibase.precondition.core.PreconditionContainer
 import liquibase.precondition.core.RunningAsPrecondition
 import liquibase.resource.ClassLoaderResourceAccessor
-import liquibase.resource.FileSystemResourceAccessor
+import liquibase.resource.DirectoryResourceAccessor
 import org.junit.Before
 import org.junit.Test
 
@@ -56,12 +56,12 @@ class DatabaseChangeLogDelegateIncludeAllTests {
 
     @Before
     void registerParser() {
-        // when Liquibase runs, it gives a FileSystemResourceAccessor based on the absolute path of
+        // when Liquibase runs, it gives a DirectoryResourceAccessor based on the absolute path of
         // the current working directory.  We'll do the same for this test.  We'll make a file for
         // ".", then get that file's absolute path, which produces something like
         // "/some/path/to/dir/.", just like what Liquibase does.
         def f = new File(".")
-        resourceAccessor = new FileSystemResourceAccessor(new File(f.absolutePath))
+        resourceAccessor = new DirectoryResourceAccessor(new File(f.absolutePath))
         parserFactory = ChangeLogParserFactory.instance
         ChangeLogParserFactory.getInstance().register(new GroovyLiquibaseChangeLogParser())
         // make sure we start with clean temporary directories before each test
