@@ -17,6 +17,8 @@ Changes for 4.0.0
 - Added an includeAllSql element to create a changeSet with a sqlFile change for each SQL file
   found in a specified directory.
 
+- We now show a more meaningful message for invalid `preconditions` (#61) 
+
 Changes for 3.0.3
 =================
 - Updated Gradle to version 7.6.1 and moved all the build properties to gradle.properties.

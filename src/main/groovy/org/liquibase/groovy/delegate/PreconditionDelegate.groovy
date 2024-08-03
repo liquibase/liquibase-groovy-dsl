@@ -46,6 +46,12 @@ class PreconditionDelegate {
         } catch (RuntimeException e) {
             throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${name}' is an invalid precondition.", e)
         }
+
+        // We don't always get an exception for an invalid precondition...
+        if ( precondition == null ) {
+            throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${name}' is an invalid precondition.")
+        }
+
         def params = args[0]
 
         if ( params != null && params instanceof Map ) {
