@@ -26,7 +26,6 @@ import liquibase.change.core.StopChange
 import liquibase.change.core.TagDatabaseChange
 import liquibase.change.core.UpdateDataChange
 import liquibase.exception.ChangeLogParseException
-import liquibase.resource.FileSystemResourceAccessor
 import org.junit.Test
 
 import static org.junit.Assert.assertEquals

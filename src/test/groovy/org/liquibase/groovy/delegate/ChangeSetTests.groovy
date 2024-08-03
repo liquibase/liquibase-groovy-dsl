@@ -13,7 +13,7 @@
  */
 package org.liquibase.groovy.delegate
 
-import liquibase.resource.FileSystemResourceAccessor
+import liquibase.resource.DirectoryResourceAccessor
 import org.junit.After
 import org.junit.Before
 import liquibase.changelog.ChangeLogParameters
@@ -22,7 +22,6 @@ import liquibase.changelog.DatabaseChangeLog
 import java.sql.Timestamp
 import java.text.SimpleDateFormat
 
-import static org.junit.Assert.assertEquals
 import static org.junit.Assert.assertTrue
 
 
@@ -38,7 +37,7 @@ class ChangeSetTests {
     def CHANGESET_FILEPATH = '/filePath'
     def sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     def changeSet
-    def resourceAccessor = new FileSystemResourceAccessor()
+    def resourceAccessor = new DirectoryResourceAccessor(new File(''))
     def oldStdOut = System.out;
     def bufStr = new ByteArrayOutputStream()
 

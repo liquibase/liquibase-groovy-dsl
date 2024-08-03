@@ -13,7 +13,7 @@
  */
 package org.liquibase.groovy
 
-import liquibase.resource.FileSystemResourceAccessor
+import liquibase.resource.DirectoryResourceAccessor
 import liquibase.serializer.ChangeLogSerializerFactory
 import liquibase.serializer.ext.GroovyChangeLogSerializer
 
@@ -34,7 +34,7 @@ class GroovySerializerTests {
 
     @Before
     void registerSerializer() {
-        resourceAccessor = new FileSystemResourceAccessor(new File('.'))
+        resourceAccessor = new DirectoryResourceAccessor(new File('.'))
         serializerFactory = ChangeLogSerializerFactory.instance
         ChangeLogSerializerFactory.getInstance().register(new GroovyChangeLogSerializer())
     }
