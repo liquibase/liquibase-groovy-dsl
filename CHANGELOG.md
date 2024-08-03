@@ -9,8 +9,11 @@ Changes for 4.0.0
 
 - Stopped "fixing" the paths when using `relativeToChangeLog` in an `includeAll`.
 
-- Removed the check for `constraints` that have a closure.  We never supported it, just had a nice
-  error message.
+- Removed the check for `constraints` that have a closure.  We never supported it, we just had a 
+  nice error message.
+
+- Added an includeAllSql element to create a changeSet with a sqlFile change for each SQL file
+  found in a specified directory.
 
 Changes for 3.0.3
 =================

@@ -38,7 +38,7 @@ import static org.junit.Assert.assertNull
 import static org.junit.Assert.assertTrue
 
 /**
- * One of three test classes for the {@link DatabaseChangeLogDelegate}.  The number of tests for
+ * One of several test classes for the {@link DatabaseChangeLogDelegate}.  The number of tests for
  * {@link DatabaseChangeLogDelegate} were getting unwieldy, so they were split up.  this class deals
  * with all the non-include related tests.
  *

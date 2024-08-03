@@ -13,22 +13,21 @@
  */
 package org.liquibase.groovy.delegate
 
+import liquibase.change.core.SQLFileChange
 import liquibase.changelog.ChangeLogParameters
 import liquibase.changelog.DatabaseChangeLog
+import liquibase.database.ObjectQuotingStrategy
 import liquibase.exception.ChangeLogParseException
 import liquibase.exception.LiquibaseException
 import liquibase.parser.ChangeLogParserFactory
 import liquibase.parser.ext.GroovyLiquibaseChangeLogParser
-import liquibase.precondition.Precondition
-import liquibase.precondition.core.DBMSPrecondition
-import liquibase.precondition.core.PreconditionContainer
-import liquibase.precondition.core.RunningAsPrecondition
 import liquibase.resource.ClassLoaderResourceAccessor
 import liquibase.resource.DirectoryResourceAccessor
 import org.junit.Before
 import org.junit.Test
 
 import static org.junit.Assert.assertEquals
+import static org.junit.Assert.assertFalse
 import static org.junit.Assert.assertNotNull
 import static org.junit.Assert.assertNull
 import static org.junit.Assert.assertTrue
@@ -36,31 +35,40 @@ import static org.junit.Assert.assertTrue
 /**
  * One of several test classes for the {@link DatabaseChangeLogDelegate}.  The number of tests for
  * {@link DatabaseChangeLogDelegate} were getting unwieldy, so they were split up.  this class deals
- * with all the "includeAll" element of a database changelog.
+ * with all the "includeAllSql" element of a database changelog.
+ * <p>
+ * Most of these tests are concerned with making sure we find the right files with the different
+ * permutations of ResourceAccessor options like paths relative to changelogs vs. the working dir,
+ * filters, comparators, depth, etc.  These tests make sure includeAllSql create the right change
+ * sets in the right order.  There is one test at the end of this class that sets all the attributes
+ * that aren't related to finding a file, such as id prefixes, encoding, etc. to make sure they
+ * find their way into the generated changeSet and sqlFile change.
  *
  * @author Steven C. Saliman
  */
-class DatabaseChangeLogDelegateIncludeAllTests {
+class DatabaseChangeLogDelegateIncludeAllSqlTests {
     // Let's define some paths and directories.  These should all be relative.
     static final ROOT_CHANGELOG_PATH = "src/test/changelog"
     static final TMP_CHANGELOG_PATH = ROOT_CHANGELOG_PATH + "/tmp"
-    static final INCLUDED_CHANGELOG_PATH = TMP_CHANGELOG_PATH + "/include"
+    static final INCLUDED_SQL_PATH = TMP_CHANGELOG_PATH + "/sql"
     // The "3-" is important to put it between 2 filenames in the parent.
-    static final INCLUDED_CHANGELOG_SUB_PATH = TMP_CHANGELOG_PATH + "/include/3-subdirectory"
+    static final INCLUDED_SQL_SUB_PATH = TMP_CHANGELOG_PATH + "/sql/3-subdirectory"
     static final TMP_CHANGELOG_DIR = new File(TMP_CHANGELOG_PATH)
-    static final INCLUDED_CHANGELOG_DIR = new File(INCLUDED_CHANGELOG_PATH)
-    static final INCLUDED_CHANGELOG_SUB_DIR = new File(INCLUDED_CHANGELOG_SUB_PATH)
+    static final INCLUDED_SQL_DIR = new File(INCLUDED_SQL_PATH)
+    static final INCLUDED_SQL_SUB_DIR = new File(INCLUDED_SQL_SUB_PATH)
     static final ROOT_CHANGE_SET = 'root-change-set'
     // Define the depth of the included changelog.  Liquibase starts at the working directory.
-    static final INCLUDED_CHANGELOG_DEPTH=5
+    static final INCLUDED_SQL_DEPTH=5
     // constants for 4 included changesets.  one of them is a sql file, to test filters.  One is
     // alphabetically last, but in in a subdirectory whose name is between two files in the parent,
     // and therefore will be included 3rd.  These constants need to match the ids in
-    // src/test/resources/include to properly test the classpath includes.
-    static final FIRST_INCLUDED_CHANGE_SET = 'first-included-change-set'
-    static final SECOND_INCLUDED_CHANGE_SET = 'second-included-change-set'
-    static final THIRD_INCLUDED_CHANGE_SET = 'third-included-change-set'  // the one in the subdir
-    static final FOURTH_INCLUDED_CHANGE_SET = 'fourth-included-change-set' // the sql file
+    // src/test/resources/include to properly test the classpath includes.  These constants are
+    // prefixes to the change set ids, since the full id is based on the temporary filename, which
+    // has numbers in it.
+    static final FIRST_INCLUDED_CHANGE_PREFIX = '1-first'
+    static final SECOND_INCLUDED_CHANGE_PREFIX = '2-second'
+    static final THIRD_INCLUDED_CHANGE_PREFIX = 'third'  // the one in the subdir
+    static final FOURTH_INCLUDED_CHANGE_PREFIX = '4-fourth' // the filtered file
     // This one is not a real file, but it looks like a legit file.  It is used by tests that
     // build changelogs on the fly.
     static final MOCK_CHANGELOG = "${ROOT_CHANGELOG_PATH}/mock-changelog.groovy"
@@ -81,33 +89,30 @@ class DatabaseChangeLogDelegateIncludeAllTests {
         ChangeLogParserFactory.getInstance().register(new GroovyLiquibaseChangeLogParser())
         // make sure we start with clean temporary directories before each test
         TMP_CHANGELOG_DIR.deleteDir()
-        INCLUDED_CHANGELOG_DIR.mkdirs()
-        INCLUDED_CHANGELOG_SUB_DIR.mkdirs()
+        INCLUDED_SQL_DIR.mkdirs()
+        INCLUDED_SQL_SUB_DIR.mkdirs()
     }
 
     /**
      * Test including a path when we have an unsupported attribute.
      */
     @Test(expected = ChangeLogParseException)
-    void includeAllInvalidAttribute() {
+    void includeAllSqlInvalidAttribute() {
         buildChangeLog {
-            includeAll(changePath: 'invalid')
+            includeAllSql(changePath: 'invalid')
         }
     }
 
     /**
-     * Try including all files in a directory.  For this test, we want a path that contains an
+     * Try including all SQL files in a directory.  For this test, we want a path that contains an
      * invalid token.  The easiest way to do that is to simply use a token that doesn't have a
      * matching property.
      */
     @Test(expected = ChangeLogParseException)
-    void includeAllWithInvalidProperty() {
+    void includeAllSqlWithInvalidProperty() {
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '\${includedChangeLogDir}')
+  includeAllSql(path: '\${includedChangeLogDir}')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -120,7 +125,7 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all files in a directory.  For this test, we want 4 files to make sure we
+     * Try including all SQL in a directory.  For this test, we want 4 files to make sure we
      * include them all in the right order, with subdirectory change between base dir changes.
      * This test makes sure that tokens don't affect paths.
      * <p>
@@ -128,16 +133,13 @@ databaseChangeLog {
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllWithValidToken() {
-        def includedChangeLogDir = createIncludedChangeLogFiles()
+    void includeAllSqlWithValidToken() {
+        def includedChangeLogDir = createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
   property(name: 'includeDir', value: '${includedChangeLogDir}')
-  includeAll(path: '\${includeDir}')
+  includeAllSql(path: '\${includeDir}')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -153,17 +155,15 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[3].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
-
-        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
-     * Try including all files in a directory.  For this test, we want 4 files to make sure we
+     * Try including all SQL in a directory.  For this test, we want 4 files to make sure we
      * include them all in the right order, with subdirectory change between base dir changes.
      * This test does things with relative paths so we can verify that the DSL preserves the
      * relative paths instead of converting them to absolute paths.
@@ -176,15 +176,12 @@ databaseChangeLog {
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllRelativeToWorkDir() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlRelativeToWorkDir() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}', context: 'override', contextFilter: 'myContext')
+  includeAllSql(path: '${INCLUDED_SQL_PATH}', context: 'override', contextFilter: 'myContext')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -199,37 +196,32 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[3].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         // Take a look at the contexts of the changes.  The first 4, came from the included file,
         // and should have contexts.  The 4th one came from the root changelog and should not.
-        assertEquals 'myContext', changeSets[0].changeLog.includeContextFilter.toString()
-        assertEquals 'myContext', changeSets[1].changeLog.includeContextFilter.toString()
-        assertEquals 'myContext', changeSets[2].changeLog.includeContextFilter.toString()
-        assertEquals 'myContext', changeSets[3].changeLog.includeContextFilter.toString()
+        assertEquals 'myContext', changeSets[0].contextFilter.toString()
+        assertEquals 'myContext', changeSets[1].contextFilter.toString()
+        assertEquals 'myContext', changeSets[2].contextFilter.toString()
+        assertEquals 'myContext', changeSets[3].contextFilter.toString()
         assertNull changeSets[4].changeLog.includeContextFilter
-
-        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
-     * Try including all files in a directory relative to a changelog that uses a relative path.
+     * Try including all SQL in a directory relative to a changelog that uses a relative path.
      * This test is looking at the relativeToChangeLogFile parameter.  This test also sets a context
      * without a contextFilter to make sure we handle the old parameter
      */
     @Test
-    void includeAllRelativeToRelativeChangeLog() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlRelativeToRelativeChangeLog() {
+        createIncludedSqlFiles()
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: 'include', relativeToChangelogFile: true, context: 'myContext')
+  includeAllSql(path: 'sql', relativeToChangelogFile: true, context: 'myContext')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -244,38 +236,33 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[3].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         // Take a look at the contexts of the changes.  The first 4, came from the included file,
         // and should have contexts.  The 4th one came from the root changelog and should not.
-        assertEquals 'myContext', changeSets[0].changeLog.includeContextFilter.toString()
-        assertEquals 'myContext', changeSets[1].changeLog.includeContextFilter.toString()
-        assertEquals 'myContext', changeSets[2].changeLog.includeContextFilter.toString()
-        assertEquals 'myContext', changeSets[3].changeLog.includeContextFilter.toString()
+        assertEquals 'myContext', changeSets[0].contextFilter.toString()
+        assertEquals 'myContext', changeSets[1].contextFilter.toString()
+        assertEquals 'myContext', changeSets[2].contextFilter.toString()
+        assertEquals 'myContext', changeSets[3].contextFilter.toString()
         assertNull changeSets[4].changeLog.includeContextFilter
-
-        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
-     * Try including all files in a directory relative to a changelog that uses a relative path.
+     * Try including all SQL in a directory relative to a changelog that uses a relative path.
      * This test is looking at the relativeToChangeLogFile parameter.  For this test, the included
-     * changelogs are not in the same directory as (or a subdirectory of) the root changelog.  The
+     * sql is not in the same directory as (or a subdirectory of) the root changelog.  The
      * main thing here is to make sure paths like "../somedir" work.
      */
     @Test
-    void includeAllRelativeToRelativeChangeLogParent() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlRelativeToRelativeChangeLogParent() {
+        createIncludedSqlFiles()
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '../tmp/include', relativeToChangelogFile: true)
+  includeAllSql(path: '../tmp/sql', relativeToChangelogFile: true)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -290,38 +277,25 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[3].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
-
-        // Check that the paths of the 3 included change sets are relative.  The 4th change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/1-first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/2-second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/third")
-        assertTrue changeSets[3].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/4-fourth")
-        assertTrue changeSets[4].filePath.startsWith(TMP_CHANGELOG_PATH)
-
-        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
-     * Try including all files in a directory, but with a resource filter.  For this test, we'll
+     * Try including all SQL in a directory, but with a resource filter.  For this test, we'll
      * repeat wanting 4 files, but with a filter that excludes 3 of them. Test may fail because of
      * unclean directories. Fix the other tests first.
      */
     @Test
-    void includeAllValidWithFilter() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlValidWithFilter() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}',
+  includeAllSql(path: '${INCLUDED_SQL_PATH}',
              filter: 'org.liquibase.groovy.helper.IncludeAllFirstOnlyFilter')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -337,29 +311,21 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()  // from the first file, and the changelog itself.
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
-
-        assertTrue changeSets[0].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
-        assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
-
-        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
-     * Try including all files in a directory with an invalid resource filter.  For this test, we'll
+     * Try including all SQL in a directory with an invalid resource filter.  For this test, we'll
      * use a class that doesn't exist.
      */
     @Test(expected = ChangeLogParseException)
-    void includeAllValidWithInvalidFilter() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlValidWithInvalidFilter() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}',
+  includeAllSql(path: '${INCLUDED_SQL_PATH}',
              filter: 'org.liquibase.groovy.helper.NoSuchClass')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -373,19 +339,16 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all files in a directory with an invalid resource filter.  For this test, we'll
+     * Try including all SQL in a directory with an invalid resource filter.  For this test, we'll
      * use a class that exists, but isn't an {@code IncludeAllFilter}.
      */
     @Test(expected = ChangeLogParseException)
-    void includeAllValidWithInappropriateFilter() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlValidWithInappropriateFilter() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}',
+  includeAllSql(path: '${INCLUDED_SQL_PATH}',
              filter: 'org.liquibase.groovy.helper.ReversingComparator')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -399,21 +362,18 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all files in a directory, but with an "endsWithFilter.  For this test, we'll
+     * Try including all SQL in a directory, but with an "endsWithFilter.  For this test, we'll
      * include a directory with 3 files, but with a filter that only matches one of them.  Test may
      * fail because of unclean directories. Fix the other tests first.
      */
     @Test
-    void includeAllEndsWithFilter() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlEndsWithFilter() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}',
-             endsWithFilter: 'sql')
+  includeAllSql(path: '${INCLUDED_SQL_PATH}',
+             endsWithFilter: 'qry')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -428,13 +388,13 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()  // from the first file, and the changelog itself.
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertTrue changeSets[0].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
     }
 
     /**
-     * Try including all files in a directory when we provide a custom comparator.  For this test,
-     * we'll repeat includeAllRelativeToWorkDir, but with a comparator that sorts the included
+     * Try including all SQL in a directory when we provide a custom comparator.  For this test,
+     * we'll repeat includeAllSqlRelativeToWorkDir, but with a comparator that sorts the included
      * changes in reverse alphabetical order.  We still expect 4 files, but this time, they should
      * come in to the changes in reverse order.
      * <p>
@@ -444,15 +404,12 @@ databaseChangeLog {
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllWithComparator() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlWithComparator() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}',
+  includeAllSql(path: '${INCLUDED_SQL_PATH}',
              resourceComparator: 'org.liquibase.groovy.helper.ReversingComparator')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -469,29 +426,24 @@ databaseChangeLog {
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
         // Remember, these should come in BACKWARDS because of the comparator.
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertTrue changeSets[0].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[3].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
-
-        verifyIncludedPreconditions(rootChangeLog)
     }
 
     /**
-     * Try including all files in a directory when we provide an invalid custom comparator.  For
+     * Try including all SQL in a directory when we provide an invalid custom comparator.  For
      * this test, we'll use a class that doesn't exist.
      */
     @Test(expected = ChangeLogParseException)
-    void includeAllWithInvalidComparator() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlWithInvalidComparator() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}',
+  includeAllSql(path: '${INCLUDED_SQL_PATH}',
              resourceComparator: 'org.liquibase.groovy.helper.NoSuchClass')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -505,19 +457,16 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all files in a directory when we provide an invalid custom comparator.  For
+     * Try including all SQL in a directory when we provide an invalid custom comparator.  For
      * this test, we'll use a class that does exist, but is not a {@code Comparator}
      */
     @Test(expected = ChangeLogParseException)
-    void includeAllWithInappropriateComparator() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlWithInappropriateComparator() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}',
+  includeAllSql(path: '${INCLUDED_SQL_PATH}',
              resourceComparator: 'org.liquibase.groovy.helper.IncludeAllFirstOnlyFilter')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -531,24 +480,24 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all when the path doesn't exist is invalid.  Expect an error.
+     * Try including all SQL when the path doesn't exist is invalid.  Expect an error.
      */
     @Test(expected = LiquibaseException)
-    void includeAllInvalidPath() {
+    void includeAllSqlInvalidPath() {
         buildChangeLog {
-            includeAll(path: 'invalid')
+            includeAllSql(path: 'invalid')
         }
     }
 
     /**
-     * Try including all when the path doesn't exist is invalid, but we've set the
+     * Try including all SQL when the path doesn't exist is invalid, but we've set the
      * errorIfMissingOrEmpty property to false.  For this test, we'll use a string to represent
      * falseness.
      */
     @Test
-    void includeAllInvalidPathIgnoreError() {
+    void includeAllSqlInvalidPathIgnoreError() {
         def changeLog = buildChangeLog {
-            includeAll(path: 'invalid', errorIfMissingOrEmpty: false)
+            includeAllSql(path: 'invalid', errorIfMissingOrEmpty: false)
         }
         assertNotNull changeLog
         def changeSets = changeLog.changeSets
@@ -557,29 +506,20 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all when the path is valid, but there are no usable files in the directory.
+     * Try including all SQL when the path is valid, but there are no usable files in the directory.
      * We'll test this by using the filter to eliminate the one change set we'll create to make sure
      * we do the test after the filter.
      */
     @Test(expected = LiquibaseException)
-    void includeAllEmptyPath() {
+    void includeAllSqlEmptyPath() {
         // This file should be excluded by the resource filter.
-        createFileFrom(INCLUDED_CHANGELOG_DIR, 'second', '.groovy', """
-databaseChangeLog {
-  changeSet(author: 'ssaliman', id: '${SECOND_INCLUDED_CHANGE_SET}') {
-    addColumn(tableName: 'monkey') {
-      column(name: 'emotion', type: 'varchar(30)')
-    }
-  }
-}
+        createFileFrom(INCLUDED_SQL_DIR, '2-second', '.sql', """
+insert into monkey(name, emotion) values ('sandy', 'sad');
 """)
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}',
+  includeAllSql(path: '${INCLUDED_SQL_PATH}',
              filter: 'org.liquibase.groovy.helper.IncludeAllFirstOnlyFilter')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -593,29 +533,20 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all when the path is valid, but there are no usable files in the directory.
+     * Try including all SQL when the path is valid, but there are no usable files in the directory.
      * This time, we'll set the errorIfMissingOrEmpty property to false.  For this test, we'll use
      * a boolean to represent falseness.  We should ignore the error about the empty directory, and
      * get the root change set from the parent file.
      */
     @Test
-    void includeAllEmptyPathIgnoreError() {
+    void includeAllSqlEmptyPathIgnoreError() {
         // This file should be excluded by the resource filter.
-        createFileFrom(INCLUDED_CHANGELOG_DIR, 'second', '.groovy', """
-databaseChangeLog {
-  changeSet(author: 'ssaliman', id: '${SECOND_INCLUDED_CHANGE_SET}') {
-    addColumn(tableName: 'monkey') {
-      column(name: 'emotion', type: 'varchar(30)')
-    }
-  }
-}
+        createFileFrom(INCLUDED_SQL_DIR, '2-second', '.sql', """
+insert into monkey(name, emotion) values ('sandy', 'sad');
 """)
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  preConditions {
-    dbms(type: 'mysql')
-  }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}', errorIfMissingOrEmpty: false,
+  includeAllSql(path: '${INCLUDED_SQL_PATH}', errorIfMissingOrEmpty: false,
              filter: 'org.liquibase.groovy.helper.IncludeAllFirstOnlyFilter')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
@@ -633,28 +564,23 @@ databaseChangeLog {
         assertNotNull changeSets
         assertEquals 1, changeSets.size()  // from the changelog itself.
         assertEquals ROOT_CHANGE_SET, changeSets[0].id
-
-        def preconditions = extractPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
-        assertNotNull preconditions
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertEquals 'mysql', preconditions[0].type
     }
 
     //-------------------------------------------------------------------------------------------
-    // Tests of the includeAll method when the changelog file is accessed via the classpath.
+    // Tests of the includeAllSql method when the changelog file is accessed via the classpath.
 
     /**
-     * Try including all files in a classpath directory.  We'll want to make sure we include them
-     * both, and in the right order. with the xml change excluded and the subdirectory change last.
+     * Try including all SQL files in a classpath directory.  We'll want to make sure we include
+     * them both, and in the right order. with the xml change excluded and the subdirectory change
+     * last.
      * <p>
-     * These change logs can't be created on the fly, they must exist in a directory that is on the
+     * These SQL files can't be created on the fly, they must exist in a directory that is on the
      * classpath, and we need to replace the resource accessor with one that can load a file from
      * the classpath.
      */
     @Test
-    void includeAllClasspath() {
-        def rootChangeLogFile = "changelog.groovy"
+    void includeAllSqlClasspath() {
+        def rootChangeLogFile = "changelog-sql.groovy"
         resourceAccessor = new ClassLoaderResourceAccessor()
 
         def parser = parserFactory.getParser(rootChangeLogFile, resourceAccessor)
@@ -664,26 +590,24 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[3].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
-
-        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
-     * Try including all files in a classpath directory, but with a resource filter. For this test,
-     * we'll have 3 files in the directory, but the resource filter will excludes two of them.
+     * Try including all SQL in a classpath directory, but with a resource filter. For this test,
+     * we'll have 3 files in the directory, but the resource filter will exclude two of them.
      * <p>
-     * The change logs can't be created on the fly, it must exist in a directory that is on the
+     * The SQL files can't be created on the fly, they must exist in a directory that is on the
      * classpath, and we need to replace the resource accessor with one that can load a file from
      * the classpath.
      */
     @Test
-    void includeAllClasspathWithFilter() {
-        def rootChangeLogFile = "filtered-changelog.groovy"
+    void includeAllSqlClasspathWithFilter() {
+        def rootChangeLogFile = "filtered-changelog-sql.groovy"
         resourceAccessor = new ClassLoaderResourceAccessor()
 
         def parser = parserFactory.getParser(rootChangeLogFile, resourceAccessor)
@@ -693,30 +617,21 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()  // from the first file, and the changelog itself.
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
-
-        // Verify our file paths.  The included changes should have relative paths.  The change from
-        // the root file will have just the name of the file because it was in the root of the
-        // classpath.  Remember, we're using classpaths here, so our relative directories will be
-        // relative to the classpath root.
-        assertTrue changeSets[0].filePath.startsWith('include/')
-        assertTrue changeSets[1].filePath.equals('filtered-changelog.groovy')
-
-        verifyIncludedPreconditions rootChangeLog
     }
 
     /**
-     * Try including all files in a classpath directory, but with an ends-with filter. For this
+     * Try including all SQL files in a classpath directory, but with an ends-with filter. For this
      * test, we'll have 3 files in the directory, but the filter will only match one of them.
      * <p>
-     * The change logs can't be created on the fly, it must exist in a directory that is on the
+     * The SQL files can't be created on the fly, they must exist in a directory that is on the
      * classpath, and we need to replace the resource accessor with one that can load a file from
      * the classpath.
      */
     @Test
-    void includeAllClasspathEndsWithWithFilter() {
-        def rootChangeLogFile = "ends-with-changelog.groovy"
+    void includeAllSqlClasspathEndsWithWithFilter() {
+        def rootChangeLogFile = "ends-with-changelog-sql.groovy"
         resourceAccessor = new ClassLoaderResourceAccessor()
 
         def parser = parserFactory.getParser(rootChangeLogFile, resourceAccessor)
@@ -726,28 +641,21 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()  // from the first file, and the changelog itself.
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertTrue changeSets[0].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
-
-        // Verify our file paths.  The included changes should have relative paths.  The change from
-        // the root file will have just the name of the file because it was in the root of the
-        // classpath.  Remember, we're using classpaths here, so our relative directories will be
-        // relative to the classpath root.
-        assertTrue changeSets[0].filePath.startsWith('include/')
-        assertTrue changeSets[1].filePath.equals('ends-with-changelog.groovy')
     }
 
     /**
-     * Try including all from a classpath loaded change log when the include path doesn't exist is
-     * invalid.  Expect an error.
+     * Try including all SQL from a classpath loaded change log when the include path doesn't exist
+     * is invalid.  Expect an error.
      * <p>
-     * The change logs can't be created on the fly, it must exist in a directory that is on the
+     * The SQL files can't be created on the fly, they must exist in a directory that is on the
      * classpath, and we need to replace the resource accessor with one that can load a file from
      * the classpath.
      */
     @Test(expected = LiquibaseException)
-    void includeAllInvalidClassPath() {
-        def rootChangeLogFile = "invalid-changelog.groovy"
+    void includeAllSqlInvalidClassPath() {
+        def rootChangeLogFile = "invalid-changelog-sql.groovy"
         resourceAccessor = new ClassLoaderResourceAccessor()
 
         def parser = parserFactory.getParser(rootChangeLogFile, resourceAccessor)
@@ -755,16 +663,16 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all from a classpath loaded change log when the include path is invalid, but
-     * we've set the errorIfMissingOrEmpty property to false.
+     * Try including all SQL from a classpath loaded change log when the include path is invalid,
+     * but we've set the errorIfMissingOrEmpty property to false.
      * <p>
      * The change logs can't be created on the fly, it must exist in a directory that is on the
      * classpath, and we need to replace the resource accessor with one that can load a file from
      * the classpath.
      */
     @Test
-    void includeAllInvalidClassPathIgnoreError() {
-        def rootChangeLogFile = "ignore-changelog.groovy"
+    void includeAllSqlInvalidClassPathIgnoreError() {
+        def rootChangeLogFile = "ignore-changelog-sql.groovy"
         resourceAccessor = new ClassLoaderResourceAccessor()
 
         def parser = parserFactory.getParser(rootChangeLogFile, resourceAccessor)
@@ -776,30 +684,24 @@ databaseChangeLog {
         assertEquals 1, changeSets.size()  // from the first file, and the changelog itself.
         assertEquals ROOT_CHANGE_SET, changeSets[0].id
 
-        assertTrue changeSets[0].filePath.equals('ignore-changelog.groovy')
-
-        def preconditions = extractPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
-        assertNotNull preconditions
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertEquals 'mysql', preconditions[0].type
+        assertTrue changeSets[0].filePath.equals('ignore-changelog-sql.groovy')
     }
 
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
-     * we expect to exclude the files in the include directory, and only return the one in the
+     * Try including all SQL files in a directory, but with a specified minDepth of 1.  For this
+     * test, we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllRelToWorkDirMinDepth() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlRelToWorkDirMinDepth() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: '${INCLUDED_CHANGELOG_DIR}', minDepth: 1)
+  includeAllSql(path: '${INCLUDED_SQL_DIR}', minDepth: ${INCLUDED_SQL_DEPTH} + 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -814,29 +716,24 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertTrue changeSets[0].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
-
-        // Check that the paths of the included change sets are relative.  The 2nd change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/third")
-        assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
     /**
-     * Try including all files in a directory, but with a maxDepth of 0 (remember maxDepth is
-     * inclusive).  For this test, we expect to exclude the file in the subdirectory.
+     * Try including all SQL files in a directory, but with a maxDepth of 1.  For this test, we
+     * expect to exclude the file in the subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllRelToWorkDirMaxDepth() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlRelToWorkDirMaxDepth() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: '${INCLUDED_CHANGELOG_DIR}', maxDepth: 0)
+  includeAllSql(path: '${INCLUDED_SQL_DIR}', maxDepth: ${INCLUDED_SQL_DEPTH} + 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -851,33 +748,27 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 4, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[3].id
-
-        // Check that the paths of the 3 included change sets are relative.  The 4th change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
+
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
-     * we expect to exclude the files in the include directory, and only return the one in the
+     * Try including all SQL files in a directory, but with a specified minDepth of 1.  For this
+     * test, we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllRelToChangeLogMinDepth() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlRelToChangeLogMinDepth() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: 'include', relativeToChangelogFile: true, minDepth: 1)
+  includeAllSql(path: 'include', relativeToChangelogFile: true, minDepth: ${INCLUDED_SQL_DEPTH} + 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -892,29 +783,29 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertTrue changeSets[0].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
 
         // Check that the paths of the included change sets are relative.  The 2nd change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/third")
+        // not come from the "includeAllSql", but it will be relative.
+        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_SQL_SUB_PATH}/third")
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
     /**
-     * Try including all files in a directory, but with a maxDepth of 0 (remember, maxDepth is
-     * inclusive).  For this test, we expect to exclude the file in the subdirectory.
+     * Try including all SQL files in a directory, but with a maxDepth of 1.  For this test, we
+     * expect to exclude the file in the subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllRelToChangeLogMaxDepth() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlRelToChangeLogMaxDepth() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: 'include', relativeToChangelogFile: true, maxDepth: 0)
+  includeAllSql(path: 'include', relativeToChangelogFile: true, maxDepth: ${INCLUDED_SQL_DEPTH} + 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -929,33 +820,27 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 4, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[3].id
-
-        // Check that the paths of the 3 included change sets are relative.  The 4th change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
+
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
-     * we expect to exclude the files in the include directory, and only return the one in the
+     * Try including all SQL files in a directory, but with a specified minDepth of 1.  For this
+     * test, we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllRelToChangeLogParentMinDepth() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlRelToChangeLogParentMinDepth() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: '../include', relativeToChangelogFile: true, minDepth: 1)
+  includeAllSql(path: '../include', relativeToChangelogFile: true, minDepth: ${INCLUDED_SQL_DEPTH} + 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -970,29 +855,29 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertTrue changeSets[0].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
 
         // Check that the paths of the included change sets are relative.  The 2nd change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/fourth")
+        // not come from the "includeAllSql", but it will be relative.
+        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_SQL_SUB_PATH}/fourth")
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
     /**
-     * Try including all files in a directory, but with a maxDepth of 0 (remember maxDepth is
-     * inclusive).  For this test, we expect  to exclude the file in the subdirectory.
+     * Try including all SQL files in a directory, but with a maxDepth of 1.  For this test, we
+     * expect to exclude the file in the subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllRelToChangeLogParentMaxDepth() {
-        createIncludedChangeLogFiles()
+    void includeAllSqlRelToChangeLogParentMaxDepth() {
+        createIncludedSqlFiles()
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: '../include', relativeToChangelogFile: true, maxDepth: 0)
+  includeAllSql(path: '../include', relativeToChangelogFile: true, maxDepth: ${INCLUDED_SQL_DEPTH} + 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -1007,29 +892,22 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 4, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[3].id
-
-        // Check that the paths of the 3 included change sets are relative.  The 4th change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
-     * we expect to exclude the files in the include directory, and only return the one in the
+     * Try including all SQL files in a directory, but with a specified minDepth of 1.  For this
+     * test, we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllClasspathMinDepth() {
+    void includeAllSqlClasspathMinDepth() {
         def rootChangeLogFile = "changelog-min.groovy"
         resourceAccessor = new ClassLoaderResourceAccessor()
 
@@ -1040,25 +918,20 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertTrue changeSets[0].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
-
-        // Check that the paths of the included change sets are relative.  The 2nd change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/third")
-        assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
     /**
-     * Try including all files in a directory, but with a maxDepth of 1.  For this test, we expect
-     * to exclude the file in the subdirectory.
+     * Try including all SQL files in a directory, but with a maxDepth of 1.  For this test, we
+     * expect to exclude the file in the subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
     @Test
-    void includeAllClasspathMaxDepth() {
-        def rootChangeLogFile = "changelog-max.groovy"
+    void includeAllSqlClasspathMaxDepth() {
+        def rootChangeLogFile = "changelog-max-sql.groovy"
         resourceAccessor = new ClassLoaderResourceAccessor()
 
         def parser = parserFactory.getParser(rootChangeLogFile, resourceAccessor)
@@ -1068,18 +941,105 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 4, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
+        assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
         assertEquals ROOT_CHANGE_SET, changeSets[3].id
-
-        // Check that the paths of the 3 included change sets are relative.  The 4th change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
+
+    //============================================================================================
+
+    /**
+     * Try including all SQL in a directory, but with all the changeSet and sqlFile related
+     * parameters set.  This test will make sure that we populate the changeSet and sqlFile change
+     * the right way based on the given options.  To keep things simple, we'll use a resource filter
+     * that results in only one changeSet being created.
+     * <p>
+     * This test doesn't test the context filter, we took care of that in previous tests.
+     * <p>
+     * Test may fail because of
+     * unclean directories. Fix the other tests first.
+     */
+    @Test
+    void includeAllSqlValidWithAll() {
+        createIncludedSqlFiles()
+
+        def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
+databaseChangeLog {
+  includeAllSql(path: '${INCLUDED_SQL_PATH}',
+             filter: 'org.liquibase.groovy.helper.IncludeAllFirstOnlyFilter',
+             author: 'Steve Saliman',
+             dbms: 'postgresql',
+             runAlways: true,
+             runOnChange: false,
+             labels: 'test_label',
+             failOnError: true, 
+             onValidationFail: 'MARK_RAN',
+             objectQuotingStrategy: 'QUOTE_ONLY_RESERVED_WORDS',
+             created: 'test_created',
+             ignore: true,
+             runWith: 'my_executor',
+             runWithSpoolFile: 'my.log',
+             idKeepsExtension: true,
+             idPrefix: 'my_prefix-',
+             idSuffix: '-my_suffix',
+             encoding: 'UTF-8',
+             endDelimiter: '@',
+             splitStatements: false,
+             stripComments: true)
+  changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
+    addColumn(tableName: 'monkey') {
+      column(name: 'emotion', type: 'varchar(50)')
+    }
+  }
+}
+""")
+        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
+        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+
+        assertNotNull rootChangeLog
+        def changeSets = rootChangeLog.changeSets
+        assertNotNull changeSets
+        assertEquals 2, changeSets.size()  // from the first file, and the changelog itself.
+
+        def changeSet = changeSets[0]
+        // The id is based on the included filename, but the included filename has random numbers
+        // in it, so we need to make sure the id starts with the given prefix and the start of the
+        // file name, and ends with the suffix.  Remember, in this test, we set idKeepExtension to
+        // true, overriding the default.
+        assertTrue changeSet.id.startsWith("my_prefix-" + FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSet.id.endsWith(".sql-my_suffix")
+        assertEquals 'Steve Saliman', changeSet.author
+        assertTrue changeSet.alwaysRun // the property doesn't match xml or docs.
+        assertFalse changeSet.runOnChange
+        assertEquals 'test_label', changeSet.labels.toString()
+        assertEquals 'postgresql', changeSet.dbmsSet.toArray()[0]
+        assertTrue changeSet.failOnError
+        assertEquals "MARK_RAN", changeSet.onValidationFail.toString()
+        assertEquals ObjectQuotingStrategy.QUOTE_ONLY_RESERVED_WORDS, changeSet.objectQuotingStrategy
+        assertEquals 'test_created', changeSet.created
+        assertTrue changeSet.ignore
+        assertEquals 'my_executor', changeSet.runWith
+        assertEquals 'my.log', changeSet.runWithSpoolFile
+
+        // get sqlFile change
+        assertEquals 1, changeSet.changes.size()
+        def sqlFileChange = changeSet.changes[0]
+        assertTrue sqlFileChange instanceof SQLFileChange
+        // The file is randomly generated, so we can't go with an equals, but we know we're good
+        // if the file starts the way we expect.
+        def x = INCLUDED_SQL_PATH + FIRST_INCLUDED_CHANGE_PREFIX
+        def y = sqlFileChange.path
+        assertTrue sqlFileChange.path.startsWith(INCLUDED_SQL_PATH + "/" + FIRST_INCLUDED_CHANGE_PREFIX)
+        assertFalse sqlFileChange.relativeToChangelogFile
+        assertEquals 'UTF-8', sqlFileChange.encoding
+        assertTrue sqlFileChange.isStripComments()
+        assertFalse sqlFileChange.isSplitStatements()
+        assertEquals '@', sqlFileChange.endDelimiter
+        assertEquals 'postgresql', sqlFileChange.dbms
+        assertNotNull sqlFileChange.resourceAccessor
+    }
+
     /**
      * Helper method that builds a changeSet from the given closure.  Tests will use this to test
      * parsing the various closures that make up the Groovy DSL.
@@ -1097,7 +1057,7 @@ databaseChangeLog {
     }
 
     /**
-     * Helper method to create changelogs in a directory for testing the includeAll methods.  It
+     * Helper method to create changelogs in a directory for testing the includeAllSql methods.  It
      * creates 4 files:
      * <ul>
      * <li>A groovy file that should be considered first, and included first.</li>
@@ -1107,52 +1067,27 @@ databaseChangeLog {
      * this file will be included third.</li>
      * <li>a sql file that should be considered fourth. and included fourth</li>
      * </ul>
-     *
-     * @return the full path of the directory where the files were placed.
      */
-    private String createIncludedChangeLogFiles() {
-        createFileFrom(INCLUDED_CHANGELOG_DIR, '1-first', '.groovy', """
-databaseChangeLog {
-  preConditions {
-    runningAs(username: 'ssaliman')
-  }
-
-  changeSet(author: 'ssaliman', id: '${FIRST_INCLUDED_CHANGE_SET}') {
-    renameTable(oldTableName: 'prosaic_table_name', newTableName: 'monkey')
-  }
-}
+    private String createIncludedSqlFiles() {
+        createFileFrom(INCLUDED_SQL_DIR, '1-first', '.sql', """
+insert into monkey(name, emotion) values ('frank', 'fastidious');
 """)
 
-        createFileFrom(INCLUDED_CHANGELOG_DIR, '2-second', '.groovy', """
-databaseChangeLog {
-  changeSet(author: 'ssaliman', id: '${SECOND_INCLUDED_CHANGE_SET}') {
-    addColumn(tableName: 'monkey') {
-      column(name: 'emotion', type: 'varchar(30)')
-    }
-  }
-}
+        createFileFrom(INCLUDED_SQL_DIR, '2-second', '.sql', """
+insert into monkey(name, emotion) values ('sandy', 'sad');
 """)
 
-        createFileFrom(INCLUDED_CHANGELOG_DIR, '4-fourth', '.sql', """
---liquibase formatted sql
-
---changeset ssaliman:${FOURTH_INCLUDED_CHANGE_SET}
-alter table monkey add gender varchar(1);
+        createFileFrom(INCLUDED_SQL_DIR, '4-fourth', '.qry', """
+insert into monkey(name, emotion) values ('felicia', 'fearless');
 """)
 
         // alphabetically last, but in a "3-" subdir, placing it third.
-        createFileFrom(INCLUDED_CHANGELOG_SUB_DIR, 'third', '.groovy', """
-databaseChangeLog {
-  changeSet(author: 'ssaliman', id: '${THIRD_INCLUDED_CHANGE_SET}') {
-    addColumn(tableName: 'monkey') {
-      column(name: 'location', type: 'varchar(30)')
-    }
-  }
-}
+        createFileFrom(INCLUDED_SQL_SUB_DIR, 'third', '.sql', """
+insert into monkey(name, emotion) values('thor', 'thrashed');
 """)
 
 
-        return INCLUDED_CHANGELOG_DIR.path.replaceAll("\\\\", "/")
+        return INCLUDED_SQL_DIR.path.replaceAll("\\\\", "/")
     }
 
     private File createFileFrom(directory, suffix, text) {
@@ -1164,46 +1099,5 @@ databaseChangeLog {
         file << text
     }
 
-    /**
-     * Check the preconditions on behalf of the various "includeAll" tests. Most of the "includeAll"
-     * tests use the same included changeSets, so this helper lets us keep our tests a little
-     * cleaner.  We should get 3 preconditions buried in our changelog structure:<br>
-     * A DBMSPrecondition from the root ChangeLog.<br>
-     * A RunningAsPrecondition from the first included changelog.<br>
-     * Aan empty PreconditionContainer from the second included changelog.
-     * <p>
-     * We won't worry about the 3rd one, but we'll make sure we get the first two.
-     * @param preconditions the preconditions from the root changelog
-     */
-    private def verifyIncludedPreconditions(rootChangeLog) {
-        def preconditions = extractPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
-        assertNotNull preconditions
-        assertEquals 2, preconditions.size()
-        assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertEquals 'mysql', preconditions[0].type
-        assertTrue preconditions[1] instanceof RunningAsPrecondition
-        assertEquals 'ssaliman', preconditions[1].username
-    }
-
-    /**
-     * Helper method to extract the actual preconditions from a list of potential preconditions.
-     * <p>
-     * Liquibase often nests the actual preconditions in a precondition container.  This method
-     * will walk through a collection of objects, extracting preconditions and recursively checking
-     * nested items in a container to get just the preconditions themselves.
-     * @param preconditions the collection of preconditions to search
-     * @return a list of actual preconditions.
-     */
-    private def extractPreconditions(preconditions) {
-        def actualPreconditions = []
-        preconditions?.each { pc ->
-            if ( pc instanceof PreconditionContainer ) {
-                actualPreconditions.addAll extractPreconditions(pc.nestedPreconditions)
-            } else if ( pc instanceof Precondition) {
-                actualPreconditions.add pc
-            }
-        }
-        return actualPreconditions
-    }
 }
 

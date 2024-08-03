@@ -204,7 +204,7 @@ class DatabaseChangeLogDelegate {
 	}
 
 	/**
-	 * Process the includeAll element to include all groovy files in a directory.
+	 * Process the includeAll element to include all files in a directory.
 	 * @param params
 	 */
 	void includeAll(Map params = [:]) {
@@ -227,74 +227,131 @@ class DatabaseChangeLogDelegate {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'includeAll' element.")
 		}
 
-		def relativeToChangelogFile = DelegateUtil.parseTruth(params.relativeToChangelogFile, false)
-		def errorIfMissingOrEmpty = DelegateUtil.parseTruth(params.errorIfMissingOrEmpty, true)
-        def context = params.contextFilter? params.contextFilter : params.context
-        def includeContexts = new ContextExpression(context)
-		def ignore = DelegateUtil.parseTruth(params.ignore, false)
-		def labels = new Labels(params.labels)
-        def minDepth = params.minDepth? params.minDepth : 0
-        def maxDepth = params.maxDepth? params.maxDepth : Integer.MAX_VALUE // recurse by default
-        def endsWithFilter = params.endsWithFilter? params.endsWithFilter: "" // LB doesn't like null
-
-        // Set up the resource comparator.  If one is not given, we'll use the standard one.
-		Comparator<String> resourceComparator = getStandardChangeLogComparator()
-		if ( params.resourceComparator ) {
-			def comparatorName = databaseChangeLog
-					.changeLogParameters
-					.expandExpressions(params.resourceComparator, databaseChangeLog)
-			try {
-				resourceComparator = (Comparator<String>) Class.forName(comparatorName).newInstance()
-			} catch (InstantiationException|IllegalAccessException|ClassNotFoundException|ClassCastException e) {
-				// Standard Liquibase would eat this and just use the standard,
-				// but I really don't like ignoring declared intentions.  If
-				// we cannot do what we were asked, we should stop and make the
-				// user fix the issue.
-				throw new ChangeLogParseException("DatabaseChangeLog: '${comparatorName}' is not a valid resource comparator.  Does the class exist, and does it implement Comparator?")
-			}
-		}
-
-		// Initialize the filter, if we have one.
-		IncludeAllFilter filter = null
-		if ( params.filter ) {
-			def filterName = databaseChangeLog
-					.changeLogParameters
-					.expandExpressions(params.filter, databaseChangeLog)
-			try {
-				filter = (IncludeAllFilter) Class.forName(filterName).newInstance()
-			} catch (InstantiationException|IllegalAccessException|ClassNotFoundException|ClassCastException e) {
-				throw new ChangeLogParseException("DatabaseChangeLog: '${filterName}' is not a valid resource filter.  Does the class exist, and does it implement IncludeAllFilter?")
-			}
-		}
-
-		def pathName = params.path
-		if ( pathName == null ) {
-			throw new ChangeLogParseException("DatabaseChangeLog: No path attribute for includeAll")
-		}
-
-		pathName = databaseChangeLog
-				.changeLogParameters
-				.expandExpressions(params.path, databaseChangeLog)
-
-		// If there is still a '$' in the path after expanding expressions, it
-		// means we've got an invalid property.  Stop here.
-		if ( pathName.contains('$') ) {
-			throw new ChangeLogParseException("DatabaseChangeLog:  '${pathName}' contains an invalid property in an 'includeAll' element.")
-		}
-
-        databaseChangeLog.includeAll(pathName,
-                relativeToChangelogFile,
-                filter,
-                errorIfMissingOrEmpty,
-                resourceComparator,
+        def includeAllParams = createIncludeAllParams(params)
+        databaseChangeLog.includeAll(includeAllParams.path,
+                includeAllParams.relativeToChangelogFile,
+                includeAllParams.filter,
+                includeAllParams.errorIfMissingOrEmpty,
+                includeAllParams.resourceComparator,
                 resourceAccessor,
-                includeContexts,
-                labels,
-                ignore,
-                minDepth,
-                maxDepth,
-                endsWithFilter,
+                includeAllParams.includeContexts,
+                includeAllParams.labels,
+                includeAllParams.ignore,
+                includeAllParams.minDepth,
+                includeAllParams.maxDepth,
+                includeAllParams.endsWithFilter,
                 null)
+    }
+
+    /**
+     * Process the Groovy DSL's special includeAllSql element that creates a changeSet with a
+     * sqlFile change for each file found in the specified path.
+     * @param params the params that affect how files are found, and how the changeSets are created
+     *         from each one.
+     */
+    void includeAllSql(Map params = [:]) {
+        // Params we use to find the SQL files.
+        def includeAllKeys = [
+                'path',
+                'relativeToChangelogFile',
+                'errorIfMissingOrEmpty',
+                'resourceComparator',
+                'filter',
+                'context',
+                'contextFilter',
+                'labels',
+                'ignore',
+                'minDepth',
+                'maxDepth',
+                'endsWithFilter',
+        ]
+
+        // Params we use to create the change set
+        def changeSetKeys = [
+                'author',
+                'dbms',
+                'runAlways',
+                'runOnChange',
+                'context',
+                'contextFilter',
+                'labels',
+                'failOnError',
+                'onValidationFail',
+                'objectQuotingStrategy',
+                'created',
+                'ignore',
+                'runWith',
+                'runWithSpoolFile',
+        ]
+
+        // Params we use to create the sqlFile change
+        def sqlFileKeys = [
+                'dbms',
+                'encoding',
+                'endDelimiter',
+                'relativeToChangeLogFile',
+                'splitStatements',
+                'stripComments',
+        ]
+
+
+        def unsupportedKeys = params.keySet() - includeAllKeys - changeSetKeys - sqlFileKeys - [
+                'idPrefix',
+                'idSuffix',
+                'idKeepsExtension',
+        ]
+
+        if ( unsupportedKeys.size() > 0 ) {
+            throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'includeAll' element.")
+        }
+
+        // Create the parameters to use when searching for files.
+        def includeAllParams = createIncludeAllParams(params.subMap(includeAllKeys))
+
+        // Create the parameters to use when creating a change set, creating a default for the
+        // author and making sure the value for runOnChange is true.
+        def changeSetParams = params.subMap(changeSetKeys)
+        if ( !changeSetParams.author ) changeSetParams.author = 'various (generated by includeAllSql)'
+        changeSetParams.runAlways = DelegateUtil.parseTruth(params.runAlways, false)
+        changeSetParams.runOnChange = DelegateUtil.parseTruth(params.runOnChange, true)
+        changeSetParams.failOnError = DelegateUtil.parseTruth(params.failOnError, false)
+        // Create the parameters we'll use for the sqlFile change.  Note that even when we use
+        // relativeToChangelogFile to locate the included directory, Liquibase's resource Accessor
+        // returns paths that are relative to the working directory.
+        def sqlFileParams = params.subMap(sqlFileKeys)
+        sqlFileParams.relativeToChangelogFile = false
+
+         // find our files.
+        def sqlFiles = databaseChangeLog.findResources(includeAllParams.path,
+                includeAllParams.relativeToChangelogFile,
+                includeAllParams.filter,
+                includeAllParams.errorIfMissingOrEmpty,
+                includeAllParams.resourceComparator,
+                resourceAccessor,
+                includeAllParams.minDepth,
+                includeAllParams.maxDepth,
+                includeAllParams.endsWithFilter)
+        if ( !sqlFiles || sqlFiles.isEmpty() ) {
+            return // findResources handles errorIfMissingOrEmpty
+        }
+
+        def idKeepsExtension = DelegateUtil.parseTruth(params.idKeepsExtension, false)
+
+        // if we have files, sort them and make a change set for each one.
+        sqlFiles.each { fileName ->
+            // We want the id to be based off the filename, minus any directories, and with the
+            // extension stripped off, unless the user wanted to keep extensions.
+            def baseName = fileName.path.tokenize('/').last().tokenize('\\').last()
+            if ( !idKeepsExtension && baseName.contains('.') ) {
+                baseName.take(baseName.lastIndexOf('.'))
+            }
+            // Make the id from the base fileName and the given prefix and suffix.
+            changeSetParams.id = "${params.idPrefix ?: ''}${baseName}${params.idSuffix ?: ''}"
+            sqlFileParams.path = fileName
+            changeSet(changeSetParams) {
+                sqlFile(sqlFileParams)
+            }
+        }
     }
 
 	/**
@@ -424,6 +481,76 @@ class DatabaseChangeLogDelegate {
 	def methodMissing(String name, args) {
 		throw new ChangeLogParseException("DatabaseChangeLog: '${name}' is not a valid element of a DatabaseChangeLog")
 	}
+
+    /**
+     * Helper method that "fixes" incoming parameters to be used with includeAll and includeAllSql
+     * elements.  It makes sure we have sensible defaults for all the required items.
+     * @param params the incoming parameters to "fix"
+     * @return a copy of the parameters with various items replaced by objects we can use elsewhere.
+     */
+    private createIncludeAllParams(Map params) {
+        def includeAllParams = params.collectEntries(Closure.IDENTITY)
+
+        includeAllParams.relativeToChangelogFile = DelegateUtil.parseTruth(params.relativeToChangelogFile, false)
+        includeAllParams.errorIfMissingOrEmpty = DelegateUtil.parseTruth(params.errorIfMissingOrEmpty, true)
+        def context = params.contextFilter? params.contextFilter : params.context
+        includeAllParams.includeContexts = new ContextExpression(context)
+        includeAllParams.ignore = DelegateUtil.parseTruth(params.ignore, false)
+        includeAllParams.labels = new Labels(params.labels)
+        includeAllParams.minDepth = params.minDepth? params.minDepth : 0
+        includeAllParams.maxDepth = params.maxDepth? params.maxDepth : Integer.MAX_VALUE // recurse by default
+        includeAllParams.endsWithFilter = params.endsWithFilter? params.endsWithFilter: "" // LB doesn't like null
+
+        // Set up the resource comparator.  If one is not given, we'll use the standard one.
+        Comparator<String> resourceComparator = getStandardChangeLogComparator()
+        if ( params.resourceComparator ) {
+            def comparatorName = databaseChangeLog
+                    .changeLogParameters
+                    .expandExpressions(params.resourceComparator, databaseChangeLog)
+            try {
+                resourceComparator = (Comparator<String>) Class.forName(comparatorName).newInstance()
+            } catch (InstantiationException|IllegalAccessException|ClassNotFoundException|ClassCastException e) {
+                // Standard Liquibase would eat this and just use the standard,
+                // but I really don't like ignoring declared intentions.  If
+                // we cannot do what we were asked, we should stop and make the
+                // user fix the issue.
+                throw new ChangeLogParseException("DatabaseChangeLog: '${comparatorName}' is not a valid resource comparator.  Does the class exist, and does it implement Comparator?")
+            }
+        }
+        includeAllParams.resourceComparator = resourceComparator
+
+        // Initialize the filter, if we have one.
+        IncludeAllFilter filter = null
+        if ( params.filter ) {
+            def filterName = databaseChangeLog
+                    .changeLogParameters
+                    .expandExpressions(params.filter, databaseChangeLog)
+            try {
+                filter = (IncludeAllFilter) Class.forName(filterName).newInstance()
+            } catch (InstantiationException|IllegalAccessException|ClassNotFoundException|ClassCastException e) {
+                throw new ChangeLogParseException("DatabaseChangeLog: '${filterName}' is not a valid resource filter.  Does the class exist, and does it implement IncludeAllFilter?")
+            }
+        }
+        includeAllParams.filter = filter
+
+        def pathName = params.path
+        if ( pathName == null ) {
+            throw new ChangeLogParseException("DatabaseChangeLog: No path attribute for includeAll")
+        }
+
+        pathName = databaseChangeLog
+                .changeLogParameters
+                .expandExpressions(params.path, databaseChangeLog)
+
+        // If there is still a '$' in the path after expanding expressions, it
+        // means we've got an invalid property.  Stop here.
+        if ( pathName.contains('$') ) {
+            throw new ChangeLogParseException("DatabaseChangeLog:  '${pathName}' contains an invalid property in an 'includeAll' element.")
+        }
+        includeAllParams.path = pathName
+
+        return includeAllParams
+    }
 
     /**
      * @return a default Comparator that sorts by path, which is the default in Liquibase.

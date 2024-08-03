@@ -17,6 +17,7 @@ package org.liquibase.groovy.delegate
 import liquibase.changelog.ChangeLogParameters
 import liquibase.changelog.DatabaseChangeLog
 import liquibase.exception.ChangeLogParseException
+import liquibase.exception.LiquibaseException
 import liquibase.parser.ChangeLogParserFactory
 import liquibase.parser.ext.GroovyLiquibaseChangeLogParser
 import liquibase.precondition.Precondition
@@ -35,7 +36,7 @@ import static org.junit.Assert.assertNull
 import static org.junit.Assert.assertTrue
 
 /**
- * One of three test classes for the {@link DatabaseChangeLogDelegate}.  The number of tests for
+ * One of several test classes for the {@link DatabaseChangeLogDelegate}.  The number of tests for
  * {@link DatabaseChangeLogDelegate} were getting unwieldy, so they were split up.  this class deals
  * with all the "include" element of a database changelog.
  *
@@ -95,7 +96,7 @@ class DatabaseChangeLogDelegateIncludeTests {
      * case, the fileName property is not set, so it can't be expanded and the parser will look for
      * a file named '${fileName}.groovy', which of course doesn't exist.
      */
-    @Test(expected = IllegalArgumentException)
+    @Test(expected = LiquibaseException)
     void includeWithInvalidProperty() {
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
