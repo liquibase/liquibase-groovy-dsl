@@ -7,7 +7,7 @@ a Groovy DSL, rather than hurtful XML. If this DSL isn't reason enough to adopt 
 there is no hope for you.  This project was started once upon a time by Tim Berglund, and is
 currently maintained by Steve Saliman.
 
-##Version 4.0.0 has finally been released!
+## Version 4.0.0 has finally been released!
 
 After far too long, release 4.0.0 has been released adding support for Liquibase 4.26+.  See the
 [News](#news) section for more details.
