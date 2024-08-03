@@ -7,6 +7,11 @@ a Groovy DSL, rather than hurtful XML. If this DSL isn't reason enough to adopt 
 there is no hope for you.  This project was started once upon a time by Tim Berglund, and is
 currently maintained by Steve Saliman.
 
+##Version 4.0.0 has finally been released!
+
+After far too long, release 4.0.0 has been released adding support for Liquibase 4.26+.  See the
+[News](#news) section for more details.
+
 **Important note for Groovy 4 and build tools:**
 This DSL is built with a transitive dependency on Groovy 3.0.15.  This ensures that Gradle and Maven
 users don't need to include Groovy in the classpath for the DSL to work, but because Groovy moved 
@@ -14,7 +19,7 @@ into the Apache foundation for version 4, and changed the artifact group, users 
 Groovy 4 need to exclude the transitive dependency.  Here is an example of how users of the
 Liquibase Gradle plugin can do it:
 ```groovy
-  liquibaseRuntime('org.liquibase:liquibase-groovy-dsl:4.0.0') {
+liquibaseRuntime('org.liquibase:liquibase-groovy-dsl:4.0.0') {
     exclude group: "org.codehaus.groovy", module: "groovy"
     exclude group: "org.codehaus.groovy", module: "groovy-sql"
   }
