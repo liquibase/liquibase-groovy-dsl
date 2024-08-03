@@ -513,38 +513,17 @@ class ChangeSetDelegate {
                                           Closure closure) {
         def change = makeChangeFromMap(name, params)
 
+        // Make a new columnDelegate and give it the change to populate.
         def columnDelegate = new ColumnDelegate(columnConfigClass: columnConfigClass,
                 databaseChangeLog: databaseChangeLog,
                 changeSetId: changeSet.id,
-                changeName: name)
+                changeName: name,
+                change: change)
         closure.delegate = columnDelegate
         closure.resolveStrategy = Closure.DELEGATE_FIRST
         closure.call()
 
-        // Try to add the columns to the change.  If we're dealing with something like a "delete"
-        // change, we'll get an exception, which we'll rethrow as a parse exception to tell the user
-        // that columns are not allowed in that change.
-        columnDelegate.columns.each { column ->
-            try {
-                change.addColumn(column)
-            } catch (MissingMethodException e) {
-                throw new ChangeLogParseException("ChangeSet '${changeSet.id}': columns are not allowed in '${name}' changes.", e)
-            }
-        }
-
-        // If we have a where clause, try to set it in the change.  We'll get an exception if a
-        // where clause is not supported by the change.
-        if ( columnDelegate.whereClause != null ) {
-            try {
-                // The columnDelegate DOES take care of expansion.
-                PatchedObjectUtil.setProperty(change, 'where', columnDelegate.whereClause)
-            } catch (RuntimeException e) {
-                throw new ChangeLogParseException("ChangeSet '${changeSet.id}': a where clause is invalid for '${name}' changes.", e)
-            }
-
-        }
         return change
-
     }
 
     /**

@@ -25,10 +25,10 @@ import liquibase.util.PatchedObjectUtil;
  * {@code loadData} change.  When the {@link ChangeSetDelegate} creates a ColumnDelegate for a,
  * given change, it will need to set the correct columnConfigClass.
  * <p>
- * This class also handles the nested where clause that appears in the {@code update} and
- * {@code delete} changes.  This probably does not cohere with the overall purpose of the class, but
- * it is much better than having to duplicate the column processing logic since the {@code update}
- * change uses columns and a where clause.
+ * This class also handles the nested where and whereParams elements that appear in the
+ * {@code update} and {@code delete} changes.  This probably does not cohere with the overall
+ * purpose of the class, but it is much better than having to duplicate the column processing logic
+ * since the {@code update} change uses columns and a where clause.
  * <p>
  * This delegate will expand expressions to make databaseChangeLog property substitutions.  It is
  * important that the caller does not do it again.
@@ -36,12 +36,11 @@ import liquibase.util.PatchedObjectUtil;
  * @author Steven C. Saliman
  */
 class ColumnDelegate {
-    def columns = []
     def columnConfigClass = ColumnConfig
-    def whereClause
     def databaseChangeLog
     def changeSetId = '<unknown>' // used for error messages
     def changeName = '<unknown>' // used for error messages
+    def change // the change to populate
 
     /**
      * Parse a single column entry in a closure.
@@ -51,6 +50,7 @@ class ColumnDelegate {
     def column(Map params, Closure closure = null) {
         def column = columnConfigClass.newInstance()
 
+        // Process the column params
         params.each { key, value ->
             try {
                 PatchedObjectUtil.setProperty(column, key, DelegateUtil.expandExpressions(value, databaseChangeLog))
@@ -61,6 +61,7 @@ class ColumnDelegate {
             }
         }
 
+        // Process nested closure (constraints)
         if ( closure ) {
             def constraintDelegate = new ConstraintDelegate(databaseChangeLog: databaseChangeLog,
                     changeSetId: changeSetId,
@@ -71,15 +72,45 @@ class ColumnDelegate {
             column.constraints = constraintDelegate.constraint
         }
 
-        columns << column
+        // Try to add the column to the change.  If we're dealing with something like a "delete"
+        // change, we'll get an exception, which we'll rethrow as a parse exception to tell the user
+        // that columns are not allowed in that change.
+        try {
+            change.addColumn(column)
+        } catch (MissingMethodException e) {
+            throw new ChangeLogParseException("ChangeSet '${changeSetId}': columns are not allowed in '${changeName}' changes.", e)
+        }
     }
 
     /**
-     * Set up a where clause for the closure.
+     * Process the where clause for the closure and add it to the change.  If the change doesn't
+     * support where clauses, we'll get a ChangeLogParseException.
      * @param whereClause the where clause to use.
      */
     def where(String whereClause) {
-        this.whereClause = DelegateUtil.expandExpressions(whereClause, databaseChangeLog)
+        whereClause = DelegateUtil.expandExpressions(whereClause, databaseChangeLog)
+        // If we have a where clause, try to set it in the change.
+        try {
+            // The columnDelegate DOES take care of expansion.
+            PatchedObjectUtil.setProperty(change, 'where', whereClause)
+        } catch (RuntimeException e) {
+            throw new ChangeLogParseException("ChangeSet '${changeSetId}': a where clause is invalid for '${changeName}' changes.", e)
+        }
+    }
+
+    /**
+     * Process the whereParams clause for the closure and add the parameters to the change.  If the
+     * change doesn't support whereParams, we'll get a ChangeLogParseException.
+     * @param closure the nested closure with the parameters themselves.
+     */
+    def whereParams(closure) {
+        def whereParamsDelegate = new WhereParamsDelegate(databaseChangeLog: databaseChangeLog,
+                changeSetId: changeSetId,
+                changeName: changeName,
+                change: change)
+        closure.delegate = whereParamsDelegate
+        closure.resolveStrategy = Closure.DELEGATE_FIRST
+        closure.call()
     }
 
     /**
@@ -89,7 +120,7 @@ class ColumnDelegate {
      * @param args the original arguments to that method.
      */
     def methodMissing(String name, args) {
-        throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${name}' is not a valid child element of ${changeName} changes")
+        throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${changeName}' is not a valid child element of ${changeName} changes")
     }
 }
 

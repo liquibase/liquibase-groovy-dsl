@@ -3,6 +3,8 @@ Changes for 4.0.0
 
 - Added support for Liquibase 4.26, removed support for previous versions.
 
+- Added support for `whereParams` in `update` and `delete` changes.
+
 - Dropped support for absolute paths for `includeAll`.
 
 - Removed the default filter for `includeAll`.

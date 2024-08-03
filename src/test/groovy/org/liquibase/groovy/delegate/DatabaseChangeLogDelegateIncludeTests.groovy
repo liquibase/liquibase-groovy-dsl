@@ -25,7 +25,6 @@ import liquibase.precondition.core.DBMSPrecondition
 import liquibase.precondition.core.PreconditionContainer
 import liquibase.precondition.core.RunningAsPrecondition
 import liquibase.resource.DirectoryResourceAccessor
-import liquibase.resource.FileSystemResourceAccessor
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -59,7 +58,7 @@ class DatabaseChangeLogDelegateIncludeTests {
 
     @Before
     void registerParser() {
-        // when Liquibase runs, it gives a FileSystemResourceAccessor based on the absolute path of
+        // when Liquibase runs, it gives a DirectoryResourceAccessor based on the absolute path of
         // the current working directory.  We'll do the same for this test.  We'll make a file for
         // ".", then get that file's absolute path, which produces something like
         // "/some/path/to/dir/.", just like what Liquibase does.
@@ -343,8 +342,7 @@ databaseChangeLog {
 
         // Check that the paths of the included change set is relative. The 2nd change set did not
         // come from the "include", so it will be relative as well..
-        assertTrue changeSets[0].filePath.startsWith(TMP_CHANGELOG_PATH)
-        assertTrue changeSets[0].filePath.contains("/../")
+        assertTrue changeSets[0].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
 
         verifyIncludedPreconditions rootChangeLog
