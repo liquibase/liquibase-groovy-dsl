@@ -38,9 +38,9 @@ class ArchitecturalRefactoringSerializerTests extends SerializerTests {
 
         def serializedText = serializer.serialize(change, true)
         def expectedText = """\
-createIndex(indexName: '''ndx_monkeys''', schemaName: '''schema''', tableName: '''monkey''', tablespace: '''tablespace''', unique: true) {
-  column(name: '''species''')
-  column(name: '''name''')
+createIndex(indexName: 'ndx_monkeys', schemaName: 'schema', tableName: 'monkey', tablespace: 'tablespace', unique: true) {
+  column(name: 'species')
+  column(name: 'name')
 }"""
         assertEquals expectedText, serializedText
     }
@@ -59,8 +59,8 @@ createIndex(indexName: '''ndx_monkeys''', schemaName: '''schema''', tableName: '
 
         def serializedText = serializer.serialize(change, true)
         def expectedText = """\
-createIndex(indexName: '''ndx_monkeys''', schemaName: '''schema''', tableName: '''monkey''', tablespace: '''tablespace''', unique: true) {
-  column(name: '''name''')
+createIndex(indexName: 'ndx_monkeys', schemaName: 'schema', tableName: 'monkey', tablespace: 'tablespace', unique: true) {
+  column(name: 'name')
 }"""
         assertEquals expectedText, serializedText
     }
@@ -74,7 +74,7 @@ createIndex(indexName: '''ndx_monkeys''', schemaName: '''schema''', tableName: '
         ] as DropIndexChange
 
         def serializedText = serializer.serialize(change, true)
-        def expectedText = "dropIndex(indexName: '''ndx_monkeys''', tableName: '''monkey''')"
+        def expectedText = "dropIndex(indexName: 'ndx_monkeys', tableName: 'monkey')"
         assertEquals expectedText, serializedText
     }
 
