@@ -313,12 +313,12 @@ ${serializedChange} {
                         break
 
                     case Timestamp:
-                        propertyString = "'''${isoFormat.format((Timestamp) propertyValue)}'''"
+                        propertyString = wrapQuoteString(isoFormat.format((Timestamp) propertyValue))
                         break
 
                     default:
                         if ( propertyValue ) {
-                            propertyString = "'''${propertyValue.toString()}'''"
+                            propertyString = wrapQuoteString(propertyValue.toString())
                         }
                         break
                 }
@@ -331,4 +331,10 @@ ${serializedChange} {
         return properties
     }
 
+    private static String wrapQuoteString(s) {
+        if (s.contains("'") || s.contains("\\")) {
+            return "'''$s'''"
+        }
+        return "'$s'"
+    }
 }
