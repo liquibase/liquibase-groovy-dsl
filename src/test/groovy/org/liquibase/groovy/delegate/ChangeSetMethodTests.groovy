@@ -326,7 +326,7 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
     }
 
     /**
-     * Test a map based rollback with the deprecated "id" attribute to make sure we get a parse
+     * Test a map based rollback with the deprecated "author" attribute to make sure we get a parse
      * exception.
      */
     @Test(expected = ChangeLogParseException)
@@ -340,7 +340,7 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
 
     }
     /**
-     * Test a map based rollback with the deprecated "id" attribute to make sure we get a parse
+     * Test a map based rollback with the invalid attribute to make sure we get a parse
      * exception.
      */
     @Test(expected = ChangeLogParseException)
@@ -349,7 +349,8 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
             addColumn(tableName: 'monkey') {
                 column(name: 'diet', type: 'varchar(30)')
             }
-            rollback(rollbackId: CHANGESET_ID, changeSetAuthor: CHANGESET_AUTHOR)
+            // rollbackId is invalid attribute
+            rollback(changeSetId: CHANGESET_ID, rollbackId: CHANGESET_ID, changeSetAuthor: CHANGESET_AUTHOR)
         }
 
     }
