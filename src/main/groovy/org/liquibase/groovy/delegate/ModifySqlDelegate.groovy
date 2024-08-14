@@ -107,7 +107,7 @@ class ModifySqlDelegate {
             sqlVisitor.applicableDbms = modifySqlDbmsList
         }
         if ( modifySqlContexts ) {
-            sqlVisitor.contexts = modifySqlContexts
+            sqlVisitor.contextFilter = modifySqlContexts
         }
         if ( modifySqlLabels ) {
             sqlVisitor.labels = modifySqlLabels
