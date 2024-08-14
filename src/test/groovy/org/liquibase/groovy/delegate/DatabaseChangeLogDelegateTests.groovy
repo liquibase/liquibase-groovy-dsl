@@ -157,9 +157,34 @@ databaseChangeLog()
 
 
     @Test
-    void preconditionParameters() {
+    void preconditionParametersWithOnUpdateSQL() {
         def closure = {
             preConditions(onFail: 'WARN', onError: 'MARK_RAN', onUpdateSQL: 'TEST', onFailMessage: 'fail-message!!!1!!1one!', onErrorMessage: 'error-message') {
+
+            }
+        }
+
+        def databaseChangeLog = new DatabaseChangeLog('changelog.xml')
+        databaseChangeLog.changeLogParameters = new ChangeLogParameters()
+        def delegate = new DatabaseChangeLogDelegate(databaseChangeLog)
+        closure.delegate = delegate
+        closure.call()
+
+        // Liquibase now wraps the container in a container.  I don't know why.
+        def preconditions = databaseChangeLog.preconditions.nestedPreconditions[0]
+        assertNotNull preconditions
+        assertTrue preconditions instanceof PreconditionContainer
+        assertEquals PreconditionContainer.FailOption.WARN, preconditions.onFail
+        assertEquals PreconditionContainer.ErrorOption.MARK_RAN, preconditions.onError
+        assertEquals PreconditionContainer.OnSqlOutputOption.TEST, preconditions.onSqlOutput
+        assertEquals 'fail-message!!!1!!1one!', preconditions.onFailMessage
+        assertEquals 'error-message', preconditions.onErrorMessage
+    }
+
+    @Test
+    void preconditionParametersWithOnSqlOutput() {
+        def closure = {
+            preConditions(onFail: 'WARN', onError: 'MARK_RAN', onSqlOutput: 'TEST', onFailMessage: 'fail-message!!!1!!1one!', onErrorMessage: 'error-message') {
 
             }
         }
