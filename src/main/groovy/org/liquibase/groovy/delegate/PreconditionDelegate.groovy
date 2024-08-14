@@ -161,6 +161,9 @@ class PreconditionDelegate {
             } else if ( key == "onError" ) {
                 preconditions.onError = ErrorOption."${paramValue}"
             } else if ( key == "onUpdateSQL" ) {
+                println "Warning: ChangeSet '${changeSetId}': onUpdateSQL parameter has been deprecated, and may be removed in a future release. Please use onUpdateSql instead of onSqlOuptut."
+                preconditions.onSqlOutput = OnSqlOutputOption."${paramValue}"
+            } else if ( key == "onSqlOutput" ) {
                 preconditions.onSqlOutput = OnSqlOutputOption."${paramValue}"
             } else {
                 // pass the reset to Liquibase
