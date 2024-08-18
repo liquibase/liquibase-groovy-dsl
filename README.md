@@ -51,6 +51,9 @@ most likely not work with older versions.
   groovy files you want to include, this will be a breaking change.  Adding 
   `endsWithFilter: ".groovy"` to the `includeAll` will fix this issue.
 
+- The groovy DSL removed support for the deprecated `onUpdateSQL` precondition attribute.  Use
+  `onUpdateSql` instead.
+
 In addition, the Groovy DSL doesn't support the Liquibase PRO modifyChangeSets change.
 
 ### March 12, 2023

@@ -1,3 +1,10 @@
+Changes for 4.0.1
+=================
+
+- Fixed a bug with the `maxDepth` argument to `includeAll` and `includeAllSql` elements.
+
+- Added support for the `onSqlOutput` precondition property, with thanks to @momosetkn
+
 Changes for 4.0.0
 =================
 
@@ -11,13 +18,16 @@ Changes for 4.0.0
 
 - Stopped "fixing" the paths when using `relativeToChangeLog` in an `includeAll`.
 
+- removed support for the deprecated `onUpdateSQL` precondition property, added support for the 
+  `onUpdateSql` and `sqlOutput` properties.
+
 - Removed the check for `constraints` that have a closure.  We never supported it, we just had a 
   nice error message.
 
 - Added an includeAllSql element to create a changeSet with a sqlFile change for each SQL file
   found in a specified directory.
 
-- We now show a more meaningful message for invalid `preconditions` (#61) 
+- We now show a more meaningful message for invalid `preconditions` (#61)
 
 Changes for 3.0.3
 =================
