@@ -122,6 +122,10 @@ class GroovyChangeLogSerializer implements ChangeLogSerializer {
             children << "comment \"${changeSet.comments.replaceAll('"', '\\\"')}\""
         }
 
+        if ( changeSet.preconditions ) {
+            children << serialize(changeSet.preconditions, true)
+        }
+
         changeSet.changes.each { change -> children << serialize(change, true) }
 
         def renderedChildren = children.collect { child -> indent(child) }.join('\n')
@@ -249,6 +253,7 @@ ${column} {
             } else if ( serializationType.equals(LiquibaseSerializable.SerializationType.DIRECT_VALUE) ) {
                 textBody = fieldValue.toString()
             } else {
+                // serializationType is NAMED_FIELD
                 attributes << field
             }
         }
