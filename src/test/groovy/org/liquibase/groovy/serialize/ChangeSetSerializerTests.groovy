@@ -13,13 +13,15 @@
  */
 package org.liquibase.groovy.serialize
 
-import liquibase.changelog.DatabaseChangeLog
-import org.liquibase.groovy.serialize.SerializerTests
-import org.junit.Test
-import static org.junit.Assert.*
-import liquibase.changelog.ChangeSet
-import liquibase.change.core.DropTableChange
 import liquibase.change.core.AddForeignKeyConstraintChange
+import liquibase.change.core.DropTableChange
+import liquibase.changelog.ChangeSet
+import liquibase.changelog.DatabaseChangeLog
+import liquibase.precondition.PreconditionFactory
+import liquibase.precondition.core.PreconditionContainer
+import org.junit.Test
+
+import static org.junit.Assert.assertEquals
 
 
 class ChangeSetSerializerTests extends SerializerTests {
@@ -67,6 +69,56 @@ changeSet(id: 'drop-table', author: 'stevesaliman') {
         def expectedText = """\
 changeSet(id: 'drop-table', author: 'stevesaliman', runAlways: true, runOnChange: true, context: 'dev,staging', dbms: 'oracle,mysql') {
   comment "${comment}"
+  dropTable(schemaName: 'schema', tableName: 'monkey')
+  addForeignKeyConstraint(baseColumnNames: 'emotion_id', baseTableName: 'monkey', baseTableSchemaName: 'base_schema', constraintName: 'fk_monkey_emotion', deferrable: true, initiallyDeferred: true, onDelete: 'CASCADE', onUpdate: 'CASCADE', referencedColumnNames: 'id', referencedTableName: 'emotions', referencedTableSchemaName: 'referenced_schema')
+}"""
+        assertEquals expectedText.toString(), serializedText
+    }
+
+    @Test
+    void serializeIncludesPreconditionsChangeSet() {
+        def comment = "This is a Liquibase comment by John smith"
+        def changeSet = new ChangeSet(
+                'drop-table',
+                "John Smith('johnsmith')",
+                true,
+                true,
+                '.',
+                'dev, staging',
+                'mysql, oracle',
+                true,
+                new DatabaseChangeLog())
+        changeSet.addChange([schemaName: 'schema', tableName: 'monkey'] as DropTableChange)
+        changeSet.addChange([constraintName: 'fk_monkey_emotion', baseTableName: 'monkey', baseTableSchemaName: 'base_schema', baseColumnNames: 'emotion_id', referencedTableName: 'emotions', referencedTableSchemaName: 'referenced_schema', referencedColumnNames: 'id', deferrable: true, initiallyDeferred: true, onDelete: 'CASCADE', onUpdate: 'CASCADE'] as AddForeignKeyConstraintChange)
+        changeSet.comments = comment
+        def preconditionContainer = new PreconditionContainer()
+        preconditionContainer.onFail = 'WARN'
+        preconditionContainer.onError = 'MARK_RAN'
+        preconditionContainer.onSqlOutput = 'TEST'
+        preconditionContainer.onFailMessage = 'fail-message!!!1!!1one!'
+        preconditionContainer.onErrorMessage = 'error-message'
+        def preconditionFactory = PreconditionFactory.instance
+        def precondition1 = preconditionFactory.create('or')
+        def precondition1_1 = preconditionFactory.create('dbms')
+        precondition1_1.type = 'mysql'
+        precondition1.addNestedPrecondition(precondition1_1)
+        def precondition1_2 = preconditionFactory.create('dbms')
+        precondition1_2.type = 'oracle'
+        precondition1.addNestedPrecondition(precondition1_2)
+        preconditionContainer.addNestedPrecondition(precondition1)
+        changeSet.preconditions = preconditionContainer
+
+        def serializedText = serializer.serialize(changeSet, true)
+
+        def expectedText = """\
+changeSet(id: 'drop-table', author: '''John Smith('johnsmith')''', runAlways: true, runOnChange: true, context: 'dev,staging', dbms: 'oracle,mysql') {
+  comment "${comment}"
+  preConditions(onError: 'MARK_RAN', onErrorMessage: 'error-message', onFail: 'WARN', onFailMessage: 'fail-message!!!1!!1one!', onSqlOutput: 'TEST') {
+    or {
+      dbms(type: 'mysql')
+      dbms(type: 'oracle')
+    }
+  }
   dropTable(schemaName: 'schema', tableName: 'monkey')
   addForeignKeyConstraint(baseColumnNames: 'emotion_id', baseTableName: 'monkey', baseTableSchemaName: 'base_schema', constraintName: 'fk_monkey_emotion', deferrable: true, initiallyDeferred: true, onDelete: 'CASCADE', onUpdate: 'CASCADE', referencedColumnNames: 'id', referencedTableName: 'emotions', referencedTableSchemaName: 'referenced_schema')
 }"""
