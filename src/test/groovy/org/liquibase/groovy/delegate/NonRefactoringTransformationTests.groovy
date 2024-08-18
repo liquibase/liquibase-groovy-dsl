@@ -178,7 +178,7 @@ class NonRefactoringTransformationTests extends ChangeSetTests {
         assertNull changes[0].schemaName
         assertNull changes[0].tableName
         assertNull changes[0].dbms
-        assertEquals 0, changes[0].columns.size
+        assertEquals 0, changes[0].columns.size()
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
