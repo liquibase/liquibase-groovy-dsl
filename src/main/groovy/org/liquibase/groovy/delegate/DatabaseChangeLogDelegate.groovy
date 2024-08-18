@@ -491,14 +491,21 @@ class DatabaseChangeLogDelegate {
     private createIncludeAllParams(Map params) {
         def includeAllParams = params.collectEntries(Closure.IDENTITY)
 
+        // If the incoming params contain certain keys, copy them to the final params, if not, use
+        // a default.  Groovy's way of getting a value with myMap.someKey, combined with the elvis
+        // operator works well, and is concise, but there is a hidden "gotcha" we need to watch out
+        // for...  The number 0 is "falsy" in Groovy, which means that If the value of a parameter
+        // is 0 (as maxDepth could be), then the elvis operator will return false, and we'll get the
+        // default value instead of the given value of 0.  This means that if a param could be 0, we
+        // we need to use containsKey instead.
         includeAllParams.relativeToChangelogFile = DelegateUtil.parseTruth(params.relativeToChangelogFile, false)
         includeAllParams.errorIfMissingOrEmpty = DelegateUtil.parseTruth(params.errorIfMissingOrEmpty, true)
         def context = params.contextFilter? params.contextFilter : params.context
         includeAllParams.includeContexts = new ContextExpression(context)
         includeAllParams.ignore = DelegateUtil.parseTruth(params.ignore, false)
         includeAllParams.labels = new Labels(params.labels)
-        includeAllParams.minDepth = params.minDepth? params.minDepth : 0
-        includeAllParams.maxDepth = params.maxDepth? params.maxDepth : Integer.MAX_VALUE // recurse by default
+        includeAllParams.minDepth = params.containsKey("minDepth")? params.minDepth : 0
+        includeAllParams.maxDepth = params.containsKey("maxDepth")? params.maxDepth : Integer.MAX_VALUE // recurse by default
         includeAllParams.endsWithFilter = params.endsWithFilter? params.endsWithFilter: "" // LB doesn't like null
 
         // Set up the resource comparator.  If one is not given, we'll use the standard one.

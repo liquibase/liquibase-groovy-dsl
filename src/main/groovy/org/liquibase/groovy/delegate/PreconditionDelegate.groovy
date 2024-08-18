@@ -160,7 +160,7 @@ class PreconditionDelegate {
                 preconditions.onFail = FailOption."${paramValue}"
             } else if ( key == "onError" ) {
                 preconditions.onError = ErrorOption."${paramValue}"
-            } else if ( key == "onUpdateSQL" ) {
+            } else if ( key == "onUpdateSql" || key == "onUpdateSql" ) {
                 preconditions.onSqlOutput = OnSqlOutputOption."${paramValue}"
             } else {
                 // pass the reset to Liquibase

@@ -167,7 +167,7 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertTrue changes[0] instanceof ExecuteShellCommandChange
         assertEquals "awk '/monkey/ { count++ } END { print count }'", changes[0].executable
         assertNotNull changes[0].os
-        assertEquals 2, changes[0].os.size
+        assertEquals 2, changes[0].os.size()
         assertEquals 'Mac OS X', changes[0].os[0]
         assertEquals 'Linux', changes[0].os[1]
         def args = changes[0].args
@@ -197,7 +197,7 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertTrue changes[0] instanceof ExecuteShellCommandChange
         assertEquals "awk", changes[0].executable
         assertNotNull changes[0].os
-        assertEquals 2, changes[0].os.size
+        assertEquals 2, changes[0].os.size()
         assertEquals 'Mac OS X', changes[0].os[0]
         assertEquals 'Linux', changes[0].os[1]
         def args = changes[0].args
@@ -232,7 +232,7 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertTrue changes[0] instanceof ExecuteShellCommandChange
         assertEquals "awk", changes[0].executable
         assertNotNull changes[0].os
-        assertEquals 2, changes[0].os.size
+        assertEquals 2, changes[0].os.size()
         assertEquals 'Mac OS X', changes[0].os[0]
         assertEquals 'Linux', changes[0].os[1]
         def args = changes[0].args

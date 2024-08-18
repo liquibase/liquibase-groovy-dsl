@@ -37,6 +37,11 @@ import static org.junit.Assert.assertTrue
  * One of several test classes for the {@link DatabaseChangeLogDelegate}.  The number of tests for
  * {@link DatabaseChangeLogDelegate} were getting unwieldy, so they were split up.  this class deals
  * with all the "includeAll" element of a database changelog.
+ * <p>
+ * For the tests in this class, it is helpful to remember that minDepth and maxDepth are 1-based,
+ * starting with the include dir itself.  So minDepth of 1 starts including files in the specified
+ * directory and below, maxDepth of 1 includes files in the specified directory but not below, and
+ * so on.
  *
  * @author Steven C. Saliman
  */
@@ -51,8 +56,6 @@ class DatabaseChangeLogDelegateIncludeAllTests {
     static final INCLUDED_CHANGELOG_DIR = new File(INCLUDED_CHANGELOG_PATH)
     static final INCLUDED_CHANGELOG_SUB_DIR = new File(INCLUDED_CHANGELOG_SUB_PATH)
     static final ROOT_CHANGE_SET = 'root-change-set'
-    // Define the depth of the included changelog.  Liquibase starts at the working directory.
-    static final INCLUDED_CHANGELOG_DEPTH=5
     // constants for 4 included changesets.  one of them is a sql file, to test filters.  One is
     // alphabetically last, but in in a subdirectory whose name is between two files in the parent,
     // and therefore will be included 3rd.  These constants need to match the ids in
@@ -786,7 +789,7 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
+     * Try including all files in a directory, but with a specified minDepth of 2.  For this test,
      * we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
@@ -799,7 +802,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: '${INCLUDED_CHANGELOG_DIR}', minDepth: 1)
+  includeAll(path: '${INCLUDED_CHANGELOG_DIR}', minDepth: 2)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -824,7 +827,7 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all files in a directory, but with a maxDepth of 0 (remember maxDepth is
+     * Try including all files in a directory, but with a maxDepth of 1 (remember maxDepth is
      * inclusive).  For this test, we expect to exclude the file in the subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
@@ -836,7 +839,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: '${INCLUDED_CHANGELOG_DIR}', maxDepth: 0)
+  includeAll(path: '${INCLUDED_CHANGELOG_DIR}', maxDepth: 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -858,13 +861,14 @@ databaseChangeLog {
 
         // Check that the paths of the 3 included change sets are relative.  The 4th change set did
         // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
+        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/1-first")
+        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/2-second")
+        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/4-fourth")
         assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
+
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
+     * Try including all files in a directory, but with a specified minDepth of 2.  For this test,
      * we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
@@ -877,7 +881,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: 'include', relativeToChangelogFile: true, minDepth: 1)
+  includeAll(path: 'include', relativeToChangelogFile: true, minDepth: 2)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -902,7 +906,7 @@ databaseChangeLog {
     }
 
     /**
-     * Try including all files in a directory, but with a maxDepth of 0 (remember, maxDepth is
+     * Try including all files in a directory, but with a maxDepth of 1 (remember, maxDepth is
      * inclusive).  For this test, we expect to exclude the file in the subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
@@ -914,7 +918,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: 'include', relativeToChangelogFile: true, maxDepth: 0)
+  includeAll(path: 'include', relativeToChangelogFile: true, maxDepth: 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -936,13 +940,14 @@ databaseChangeLog {
 
         // Check that the paths of the 3 included change sets are relative.  The 4th change set did
         // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
+        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/1-first")
+        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/2-second")
+        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/4-fourth")
         assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
+
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
+     * Try including all files in a directory, but with a specified minDepth of 2.  For this test,
      * we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
@@ -955,7 +960,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: '../include', relativeToChangelogFile: true, minDepth: 1)
+  includeAll(path: '../tmp/include', relativeToChangelogFile: true, minDepth: 2)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -970,17 +975,17 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 2, changeSets.size()
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[0].id
+        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[0].id
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
 
         // Check that the paths of the included change sets are relative.  The 2nd change set did
         // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/fourth")
+        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/third")
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
     /**
-     * Try including all files in a directory, but with a maxDepth of 0 (remember maxDepth is
+     * Try including all files in a directory, but with a maxDepth of 1 (remember maxDepth is
      * inclusive).  For this test, we expect  to exclude the file in the subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
@@ -992,7 +997,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: '../include', relativeToChangelogFile: true, maxDepth: 0)
+  includeAll(path: '../tmp/include', relativeToChangelogFile: true, maxDepth: 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -1014,14 +1019,14 @@ databaseChangeLog {
 
         // Check that the paths of the 3 included change sets are relative.  The 4th change set did
         // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
+        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/1-first")
+        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/2-second")
+        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/4-fourth")
         assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
     }
 
     /**
-     * Try including all files in a directory, but with a specified minDepth of 1.  For this test,
+     * Try including all files in a directory, but with a specified minDepth of 2.  For this test,
      * we expect to exclude the files in the include directory, and only return the one in the
      * subdirectory.
      * <p>
@@ -1044,13 +1049,15 @@ databaseChangeLog {
         assertEquals ROOT_CHANGE_SET, changeSets[1].id
 
         // Check that the paths of the included change sets are relative.  The 2nd change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_SUB_PATH}/third")
-        assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
+        // not come from the "includeAll", but it will be relative.  Note that classpath resources
+        // are relative to the classpath root, and won't begin with a "/"
+        def relativePath = INCLUDED_CHANGELOG_SUB_PATH.substring(TMP_CHANGELOG_PATH.length()+1)
+        assertTrue changeSets[0].filePath.startsWith("${relativePath}/third")
+        assertEquals "changelog-min.groovy", changeSets[1].filePath
     }
 
     /**
-     * Try including all files in a directory, but with a maxDepth of 1.  For this test, we expect
+     * Try including all files in a directory, but with a maxDepth of 2.  For this test, we expect
      * to exclude the file in the subdirectory.
      * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
@@ -1074,12 +1081,15 @@ databaseChangeLog {
         assertEquals ROOT_CHANGE_SET, changeSets[3].id
 
         // Check that the paths of the 3 included change sets are relative.  The 4th change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/fourth")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
+        // not come from the "includeAll", but it will be relative.  Note that classpath resources
+        // are relative to the classpath root, and won't begin with a "/"
+        def relativePath = INCLUDED_CHANGELOG_PATH.substring(TMP_CHANGELOG_PATH.length()+1)
+        assertTrue changeSets[0].filePath.startsWith("${relativePath}/1-first")
+        assertTrue changeSets[1].filePath.startsWith("${relativePath}/2-second")
+        assertTrue changeSets[2].filePath.startsWith("${relativePath}/4-fourth")
+        assertEquals "changelog-max.groovy", changeSets[3].filePath
     }
+
     /**
      * Helper method that builds a changeSet from the given closure.  Tests will use this to test
      * parsing the various closures that make up the Groovy DSL.
