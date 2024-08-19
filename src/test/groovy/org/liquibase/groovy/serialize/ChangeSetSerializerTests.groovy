@@ -50,7 +50,7 @@ changeSet(id: 'drop-table', author: 'stevesaliman') {
 
     @Test
     void serializeCompleteChangeSet() {
-        def comment = "This is a Liquibase comment by Steve \\\"Steve\\\" Saliman"
+        def comment = 'This is a Liquibase comment by Steve "Steve" Saliman'
         def changeSet = new ChangeSet(
                 'drop-table',
                 'stevesaliman',
@@ -68,7 +68,61 @@ changeSet(id: 'drop-table', author: 'stevesaliman') {
         def serializedText = serializer.serialize(changeSet, true)
         def expectedText = """\
 changeSet(id: 'drop-table', author: 'stevesaliman', runAlways: true, runOnChange: true, context: 'dev,staging', dbms: 'oracle,mysql') {
-  comment "${comment}"
+  comment '${comment}'
+  dropTable(schemaName: 'schema', tableName: 'monkey')
+  addForeignKeyConstraint(baseColumnNames: 'emotion_id', baseTableName: 'monkey', baseTableSchemaName: 'base_schema', constraintName: 'fk_monkey_emotion', deferrable: true, initiallyDeferred: true, onDelete: 'CASCADE', onUpdate: 'CASCADE', referencedColumnNames: 'id', referencedTableName: 'emotions', referencedTableSchemaName: 'referenced_schema')
+}"""
+        assertEquals expectedText.toString(), serializedText
+    }
+
+    @Test
+    void serializeIncludeSingleQuoteCommentChangeSet() {
+        def comment = "This is a Liquibase comment by Steve 'Steve' Saliman"
+        def changeSet = new ChangeSet(
+                'drop-table',
+                'stevesaliman',
+                true,
+                true,
+                '.',
+                'dev, staging',
+                'mysql, oracle',
+                true,
+                new DatabaseChangeLog())
+        changeSet.addChange([schemaName: 'schema', tableName: 'monkey'] as DropTableChange)
+        changeSet.addChange([constraintName: 'fk_monkey_emotion', baseTableName: 'monkey', baseTableSchemaName: 'base_schema', baseColumnNames: 'emotion_id', referencedTableName: 'emotions', referencedTableSchemaName: 'referenced_schema', referencedColumnNames: 'id', deferrable: true, initiallyDeferred: true, onDelete: 'CASCADE', onUpdate: 'CASCADE'] as AddForeignKeyConstraintChange)
+        changeSet.comments = comment
+
+        def serializedText = serializer.serialize(changeSet, true)
+        def expectedText = """\
+changeSet(id: 'drop-table', author: 'stevesaliman', runAlways: true, runOnChange: true, context: 'dev,staging', dbms: 'oracle,mysql') {
+  comment 'This is a Liquibase comment by Steve \\'Steve\\' Saliman'
+  dropTable(schemaName: 'schema', tableName: 'monkey')
+  addForeignKeyConstraint(baseColumnNames: 'emotion_id', baseTableName: 'monkey', baseTableSchemaName: 'base_schema', constraintName: 'fk_monkey_emotion', deferrable: true, initiallyDeferred: true, onDelete: 'CASCADE', onUpdate: 'CASCADE', referencedColumnNames: 'id', referencedTableName: 'emotions', referencedTableSchemaName: 'referenced_schema')
+}"""
+        assertEquals expectedText.toString(), serializedText
+    }
+
+    @Test
+    void serializeIncludeNewlineCommentChangeSet() {
+        def comment = 'This is a Liquibase comment\n by Steve "Steve" Saliman'
+        def changeSet = new ChangeSet(
+                'drop-table',
+                'stevesaliman',
+                true,
+                true,
+                '.',
+                'dev, staging',
+                'mysql, oracle',
+                true,
+                new DatabaseChangeLog())
+        changeSet.addChange([schemaName: 'schema', tableName: 'monkey'] as DropTableChange)
+        changeSet.addChange([constraintName: 'fk_monkey_emotion', baseTableName: 'monkey', baseTableSchemaName: 'base_schema', baseColumnNames: 'emotion_id', referencedTableName: 'emotions', referencedTableSchemaName: 'referenced_schema', referencedColumnNames: 'id', deferrable: true, initiallyDeferred: true, onDelete: 'CASCADE', onUpdate: 'CASCADE'] as AddForeignKeyConstraintChange)
+        changeSet.comments = comment
+
+        def serializedText = serializer.serialize(changeSet, true)
+        def expectedText = """\
+changeSet(id: 'drop-table', author: 'stevesaliman', runAlways: true, runOnChange: true, context: 'dev,staging', dbms: 'oracle,mysql') {
+  comment 'This is a Liquibase comment\\n by Steve "Steve" Saliman'
   dropTable(schemaName: 'schema', tableName: 'monkey')
   addForeignKeyConstraint(baseColumnNames: 'emotion_id', baseTableName: 'monkey', baseTableSchemaName: 'base_schema', constraintName: 'fk_monkey_emotion', deferrable: true, initiallyDeferred: true, onDelete: 'CASCADE', onUpdate: 'CASCADE', referencedColumnNames: 'id', referencedTableName: 'emotions', referencedTableSchemaName: 'referenced_schema')
 }"""
@@ -80,7 +134,7 @@ changeSet(id: 'drop-table', author: 'stevesaliman', runAlways: true, runOnChange
         def comment = "This is a Liquibase comment by John smith"
         def changeSet = new ChangeSet(
                 'drop-table',
-                "John Smith('johnsmith')",
+                "John Smith",
                 true,
                 true,
                 '.',
@@ -111,8 +165,8 @@ changeSet(id: 'drop-table', author: 'stevesaliman', runAlways: true, runOnChange
         def serializedText = serializer.serialize(changeSet, true)
 
         def expectedText = """\
-changeSet(id: 'drop-table', author: '''John Smith('johnsmith')''', runAlways: true, runOnChange: true, context: 'dev,staging', dbms: 'oracle,mysql') {
-  comment "${comment}"
+changeSet(id: 'drop-table', author: 'John Smith', runAlways: true, runOnChange: true, context: 'dev,staging', dbms: 'oracle,mysql') {
+  comment '${comment}'
   preConditions(onError: 'MARK_RAN', onErrorMessage: 'error-message', onFail: 'WARN', onFailMessage: 'fail-message!!!1!!1one!', onSqlOutput: 'TEST') {
     or {
       dbms(type: 'mysql')
