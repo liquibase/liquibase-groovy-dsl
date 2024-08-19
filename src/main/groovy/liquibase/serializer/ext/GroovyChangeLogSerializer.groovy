@@ -119,7 +119,7 @@ class GroovyChangeLogSerializer implements ChangeLogSerializer {
         }
 
         if ( changeSet.comments?.trim() ) {
-            children << "comment \"${changeSet.comments.replaceAll('"', '\\\"')}\""
+            children << "comment ${serializeString(changeSet.comments)}"
         }
 
         if ( changeSet.preconditions ) {
@@ -318,12 +318,12 @@ ${serializedChange} {
                         break
 
                     case Timestamp:
-                        propertyString = wrapQuoteString(isoFormat.format((Timestamp) propertyValue))
+                        propertyString = serializeString(isoFormat.format((Timestamp) propertyValue))
                         break
 
                     default:
                         if ( propertyValue ) {
-                            propertyString = wrapQuoteString(propertyValue.toString())
+                            propertyString = serializeString(propertyValue.toString())
                         }
                         break
                 }
@@ -336,10 +336,9 @@ ${serializedChange} {
         return properties
     }
 
-    private static String wrapQuoteString(s) {
-        if (s.contains("'") || s.contains("\\")) {
-            return "'''$s'''"
-        }
+    private static String serializeString(s) {
+        s = s.replace("'", "\\'")
+        s = s.replace("\n", "\\n")
         return "'$s'"
     }
 }
