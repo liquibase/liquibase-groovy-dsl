@@ -5,6 +5,8 @@ Changes for 4.0.1
 
 - Added support for the `onSqlOutput` precondition property, with thanks to @momosetkn
 
+- Fixed a bug that prevented preconditions from being serialized, with thanks to @momosetkn
+
 Changes for 4.0.0
 =================
 
@@ -18,8 +20,7 @@ Changes for 4.0.0
 
 - Stopped "fixing" the paths when using `relativeToChangeLog` in an `includeAll`.
 
-- removed support for the deprecated `onUpdateSQL` precondition property, added support for the 
-  `onUpdateSql` and `sqlOutput` properties.
+- removed support for the deprecated `onUpdateSQL` precondition property.
 
 - Removed the check for `constraints` that have a closure.  We never supported it, we just had a 
   nice error message.
