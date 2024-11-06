@@ -350,6 +350,41 @@ databaseChangeLog {
     }
 
     /**
+     * Try including a file with a logicalFilePath of 'logicalFilePathValue.groovy'.
+     */
+    @Test
+    void includeWithLogicalPath() {
+        def includedChangeLogFile = createFileFrom(INCLUDED_CHANGELOG_DIR, '.groovy', """
+databaseChangeLog {
+  preConditions {
+    runningAs(username: 'ssaliman')
+  }
+
+  changeSet(author: 'ssaliman', id: 'included-change-set') {
+    renameTable(oldTableName: 'prosaic_table_name', newTableName: 'monkey')
+  }
+}
+""")
+
+        def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
+databaseChangeLog {
+  include(file: '${includedChangeLogFile}', logicalFilePath: 'logicalFilePathValue.groovy')
+}
+""")
+
+        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
+        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+
+        assertNotNull rootChangeLog
+        def changeSets = rootChangeLog.changeSets
+        assertNotNull changeSets
+        changeSets.each { changeSet ->
+            assertEquals 'logicalFilePathValue.groovy', changeSet.filePath
+            assertEquals 'logicalFilePathValue.groovy', changeSet.logicalFilePath
+        }
+    }
+
+    /**
      * Helper method that builds a changeSet from the given closure.  Tests will use this to test
      * parsing the various closures that make up the Groovy DSL.
      * @param closure the closure containing changes to parse.

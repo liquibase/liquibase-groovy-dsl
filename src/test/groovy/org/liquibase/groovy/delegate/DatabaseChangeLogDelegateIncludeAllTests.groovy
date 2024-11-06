@@ -1091,6 +1091,35 @@ databaseChangeLog {
     }
 
     /**
+     * Try including all files in a directory. but with a logicalFilePath of 'logicalFilePathValue.groovy'.
+     * <p>
+     * Note: when other tests throw exceptions, this test may also fail because of unclean
+     * directories.  Fix the other tests first.
+     */
+    @Test
+    void includeAllWithLogicalPath() {
+
+        def includedChangeLogDir = createIncludedChangeLogFiles()
+
+        def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
+databaseChangeLog {
+  includeAll(path: '${includedChangeLogDir}', logicalFilePath: 'logicalFilePathValue.groovy')
+}
+""")
+
+        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
+        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+
+        assertNotNull rootChangeLog
+        def changeSets = rootChangeLog.changeSets
+        assertNotNull changeSets
+        changeSets.each { changeSet ->
+            assertEquals 'logicalFilePathValue.groovy', changeSet.filePath
+            assertEquals 'logicalFilePathValue.groovy', changeSet.logicalFilePath
+        }
+    }
+
+    /**
      * Helper method that builds a changeSet from the given closure.  Tests will use this to test
      * parsing the various closures that make up the Groovy DSL.
      * @param closure the closure containing changes to parse.
