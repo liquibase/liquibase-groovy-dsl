@@ -269,6 +269,9 @@ databaseChangeLog {
      * This test is looking at the relativeToChangeLogFile parameter.  For this test, the included
      * changelogs are not in the same directory as (or a subdirectory of) the root changelog.  The
      * main thing here is to make sure paths like "../somedir" work.
+     * <p>
+     * This test also uses the liquibase 4.30+ logicalFilePath attribute to make sure it cascades
+     * to the generated change sets.
      */
     @Test
     void includeAllRelativeToRelativeChangeLogParent() {

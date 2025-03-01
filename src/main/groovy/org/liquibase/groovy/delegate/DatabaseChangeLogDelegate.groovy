@@ -32,7 +32,7 @@ import liquibase.exception.ChangeLogParseException
  * @author Steven C. Saliman
  */
 class DatabaseChangeLogDelegate {
-	def databaseChangeLog
+	DatabaseChangeLog databaseChangeLog
 	def params
 	def resourceAccessor
 
@@ -111,9 +111,7 @@ class DatabaseChangeLogDelegate {
 		if ( params.containsKey('filePath') ) {
 			filePath = params.filePath
 		}
-		if ( params.containsKey('logicalFilePath') ) {
-			filePath = params.logicalFilePath
-		}
+
         // Liquibase 4.16 deprecated "context" in favor of "contextFilter", but it still supports
         // both.  A null here is fine.
         def contextFilter = params.contextFilter? params.contextFilter : params.context
@@ -158,6 +156,10 @@ class DatabaseChangeLogDelegate {
 			changeSet.ignore = DelegateUtil.parseTruth(params.ignore, false)
 		}
 
+        if ( params.logicalFilePath ) {
+            changeSet.logicalFilePath = params.logicalFilePath
+        }
+
 		def delegate = new ChangeSetDelegate(changeSet: changeSet,
 				databaseChangeLog: databaseChangeLog)
 		closure.delegate = delegate
@@ -180,7 +182,9 @@ class DatabaseChangeLogDelegate {
                 'context',
                 'contextFilter',
                 'labels',
-                'ignore']
+                'ignore',
+                'logicalFilePath'
+        ]
 		if ( unsupportedKeys.size() > 0 ) {
 			throw new ChangeLogParseException("DatabaseChangeLog:  '${unsupportedKeys.toArray()[0]}' is not a supported attribute of the 'include' element.")
 		}
@@ -199,8 +203,17 @@ class DatabaseChangeLogDelegate {
         // The Resource Accessor we need to use depends on whether we are including a relative file
         // or an absolute file, and which version of Liquibase we're using.  For now, we'll assume
         // that we have a relative include, which uses the resource accessor we've been given.
-        databaseChangeLog.include(fileName, relativeToChangelogFile, errorIfMissing,
-                resourceAccessor, includeContexts, labels, ignore, DatabaseChangeLog.OnUnknownFileFormat.FAIL)
+        if ( DelegateUtil.lbVersionAtLeast("4.30.0") ) {
+            // Liquibase 4.30+, include the logicalFilePath.
+            databaseChangeLog.include(fileName, relativeToChangelogFile, errorIfMissing,
+                    resourceAccessor, includeContexts, labels, ignore, params.logicalFilePath,
+                    DatabaseChangeLog.OnUnknownFileFormat.FAIL)
+        } else {
+            // Pre-4.30, exclude logicalFilePath
+            databaseChangeLog.include(fileName, relativeToChangelogFile, errorIfMissing,
+                    resourceAccessor, includeContexts, labels, ignore,
+                    DatabaseChangeLog.OnUnknownFileFormat.FAIL)
+        }
 	}
 
 	/**
@@ -219,6 +232,7 @@ class DatabaseChangeLogDelegate {
                 'contextFilter',
                 'labels',
                 'ignore',
+                'logicalFilePath',
                 'minDepth',
                 'maxDepth',
                 'endsWithFilter'
@@ -228,19 +242,38 @@ class DatabaseChangeLogDelegate {
 		}
 
         def includeAllParams = createIncludeAllParams(params)
-        databaseChangeLog.includeAll(includeAllParams.path,
-                includeAllParams.relativeToChangelogFile,
-                includeAllParams.filter,
-                includeAllParams.errorIfMissingOrEmpty,
-                includeAllParams.resourceComparator,
-                resourceAccessor,
-                includeAllParams.includeContexts,
-                includeAllParams.labels,
-                includeAllParams.ignore,
-                includeAllParams.minDepth,
-                includeAllParams.maxDepth,
-                includeAllParams.endsWithFilter,
-                null)
+        if ( DelegateUtil.lbVersionAtLeast("4.30.0") ) {
+            // Liquibase 4.30+, include the logicalFilePath.
+            databaseChangeLog.includeAll(includeAllParams.path,
+                    includeAllParams.relativeToChangelogFile,
+                    includeAllParams.filter,
+                    includeAllParams.errorIfMissingOrEmpty,
+                    includeAllParams.resourceComparator,
+                    resourceAccessor,
+                    includeAllParams.includeContexts,
+                    includeAllParams.labels,
+                    includeAllParams.ignore,
+                    includeAllParams.logicalFilePath,
+                    includeAllParams.minDepth,
+                    includeAllParams.maxDepth,
+                    includeAllParams.endsWithFilter,
+                    null)
+        } else {
+            // Pre-4.30, exclude logicalFilePath
+            databaseChangeLog.includeAll(includeAllParams.path,
+                    includeAllParams.relativeToChangelogFile,
+                    includeAllParams.filter,
+                    includeAllParams.errorIfMissingOrEmpty,
+                    includeAllParams.resourceComparator,
+                    resourceAccessor,
+                    includeAllParams.includeContexts,
+                    includeAllParams.labels,
+                    includeAllParams.ignore,  // after this, need logical file path, maybe pass null?
+                    includeAllParams.minDepth,
+                    includeAllParams.maxDepth,
+                    includeAllParams.endsWithFilter,
+                    null)
+        }
     }
 
     /**
@@ -280,6 +313,7 @@ class DatabaseChangeLogDelegate {
                 'objectQuotingStrategy',
                 'created',
                 'ignore',
+                'logicalFilePath',
                 'runWith',
                 'runWithSpoolFile',
         ]
@@ -293,7 +327,6 @@ class DatabaseChangeLogDelegate {
                 'splitStatements',
                 'stripComments',
         ]
-
 
         def unsupportedKeys = params.keySet() - includeAllKeys - changeSetKeys - sqlFileKeys - [
                 'idPrefix',
@@ -503,6 +536,7 @@ class DatabaseChangeLogDelegate {
         def context = params.contextFilter? params.contextFilter : params.context
         includeAllParams.includeContexts = new ContextExpression(context)
         includeAllParams.ignore = DelegateUtil.parseTruth(params.ignore, false)
+        includeAllParams.logicalFilePath = params.logicalFilePath
         includeAllParams.labels = new Labels(params.labels)
         includeAllParams.minDepth = params.containsKey("minDepth")? params.minDepth : 0
         includeAllParams.maxDepth = params.containsKey("maxDepth")? params.maxDepth : Integer.MAX_VALUE // recurse by default
@@ -568,4 +602,5 @@ class DatabaseChangeLogDelegate {
         // to time to make sure they don't change this out from under us.
         return Comparator.comparing(o -> o.replace("WEB-INF/classes/", ""))
 	}
+
 }

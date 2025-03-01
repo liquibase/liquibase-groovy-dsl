@@ -14,6 +14,8 @@
 
 package org.liquibase.groovy.delegate
 
+import liquibase.util.LiquibaseUtil
+
 /**
  * Little utility with helper methods that all the delegates can use.
  *
@@ -65,4 +67,33 @@ class DelegateUtil {
         }
         return value.asBoolean()
     }
+
+    /**
+     * Compare the version of Liquibase being used to a target semver and return if we're using a
+     * version of Liquibase that is at least at the version of the target.
+     *
+     * @param targetSemver the target version to use as a comparison.
+     * @return @{code true} if the Liquibase version is greater than or equal to the target semver.
+     */
+    static boolean lbVersionAtLeast(String targetSemver) {
+        List liquibaseVersions = LiquibaseUtil.getBuildVersion().tokenize('.')
+        List targetVersions = targetSemver.tokenize('.')
+
+        def commonIndices = Math.min(liquibaseVersions.size(), targetVersions.size())
+
+        for ( int i = 0; i < commonIndices; ++i ) {
+            def givenNum = liquibaseVersions[i].toInteger()
+            def targetNum = targetVersions[i].toInteger()
+
+            if ( givenNum != targetNum ) {
+                return givenNum > targetNum
+            }
+        }
+
+        // If we got this far then all the common indices are identical, so whichever version is
+        // longer must be more recent.  If they are the same size, then we match the "at least"
+        // condition.
+        return liquibaseVersions.size() >= targetVersions.size()
+    }
+
 }

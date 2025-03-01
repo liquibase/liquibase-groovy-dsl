@@ -7,10 +7,7 @@ a Groovy DSL, rather than hurtful XML. If this DSL isn't reason enough to adopt 
 there is no hope for you.  This project was started once upon a time by Tim Berglund, and is
 currently maintained by Steve Saliman.
 
-## Version 4.0.0 has finally been released!
-
-After far too long, release 4.0.0 has been released adding support for Liquibase 4.26+.  See the
-[News](#news) section for more details.
+## Version 4.0.1 has been released! See the [News](#news) section for more details.
 
 **Important note for Groovy 4 and build tools:**
 This DSL is built with a transitive dependency on Groovy 3.0.15.  This ensures that Gradle and Maven
@@ -28,6 +25,10 @@ liquibaseRuntime "org.apache.groovy:groovy-sql:4.0.5"
 ```
 
 ## News
+### March 1, 2025
+Release 4.0.1 adds support for Liquibase 4.31, including new attributes added to Liquibase since
+version 4.26.
+
 ### March 12, 2024
 Release 4.0.0 adds support for Liquibase 4.26, and removed official support for versions prior to
 that.  Liquibase has had a lot of internal API changes between 6.16.1 and 4.26, and the plugin will
@@ -232,10 +233,6 @@ sql { """
 
 - Liquibase added the `context` attribute to the `include`, `includeAll`, and `changeLog` elements.
   They work the same as the context attribute of a change set.
-
-- The Liquibase XML accepts a `logicalFilePath` attribute for the `changeSet` element.  The actual
-  property in the ChangeSet class is named `filePath`.  The Groovy DSL accepts both.  The default is
-  to inherit the file path from the DatabaseChangeLog that contains the ChangeSet. 
 
 ## License
 This code is released under the Apache Public License 2.0, just like Liquibase itself.

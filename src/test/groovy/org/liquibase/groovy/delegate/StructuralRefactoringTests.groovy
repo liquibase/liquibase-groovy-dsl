@@ -394,6 +394,7 @@ END;"""
         assertNull changes[0].remarks
         assertNull changes[0].tableType
         assertNull changes[0].ifNotExists
+        assertNull changes[0].rowDependencies
         assertNotNull changes[0].resourceAccessor
 
         def columns = changes[0].columns
@@ -415,7 +416,8 @@ END;"""
                     tableName: 'monkey',
                     remarks: 'angry',
                     tableType: 'rhesus',
-                    ifNotExists: true) {
+                    ifNotExists: true,
+                    rowDependencies: false) {
                 column(name: 'status', type: 'varchar(100)')
                 column(name: 'id', type: 'int')
             }
@@ -433,6 +435,56 @@ END;"""
         assertEquals 'angry', changes[0].remarks
         assertEquals 'rhesus', changes[0].tableType
         assertTrue changes[0].ifNotExists
+        assertFalse changes[0].rowDependencies
+        assertNotNull changes[0].resourceAccessor
+
+        def columns = changes[0].columns
+        assertNotNull columns
+        assertEquals 2, columns.size()
+        assertTrue columns[0] instanceof ColumnConfig
+        assertEquals 'status', columns[0].name
+        assertEquals 'varchar(100)', columns[0].type
+        assertTrue columns[1] instanceof ColumnConfig
+        assertEquals 'id', columns[1].name
+        assertEquals 'int', columns[1].type
+        assertNoOutput()
+    }
+
+    /**
+     * Test parsing a createTable change with all supported attributes and a couple of columns, but
+     * this time, swap the values of the boolean attributes to make sure the last test didn't pass
+     * by side effect of default values.
+     */
+    @Test
+    void createTableFullSwapBooleans() {
+        buildChangeSet {
+            createTable(
+                    catalogName: 'catalog',
+                    schemaName: 'schema',
+                    tablespace: 'oracle_tablespace',
+                    tableName: 'monkey',
+                    remarks: 'angry',
+                    tableType: 'rhesus',
+                    ifNotExists: false,
+                    rowDependencies: true) {
+                column(name: 'status', type: 'varchar(100)')
+                column(name: 'id', type: 'int')
+            }
+        }
+
+        assertEquals 0, changeSet.rollback.changes.size()
+        def changes = changeSet.changes
+        assertNotNull changes
+        assertEquals 1, changes.size()
+        assertTrue changes[0] instanceof CreateTableChange
+        assertEquals 'catalog', changes[0].catalogName
+        assertEquals 'schema', changes[0].schemaName
+        assertEquals 'oracle_tablespace', changes[0].tablespace
+        assertEquals 'monkey', changes[0].tableName
+        assertEquals 'angry', changes[0].remarks
+        assertEquals 'rhesus', changes[0].tableType
+        assertFalse changes[0].ifNotExists
+        assertTrue changes[0].rowDependencies
         assertNotNull changes[0].resourceAccessor
 
         def columns = changes[0].columns

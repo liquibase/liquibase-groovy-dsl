@@ -224,7 +224,71 @@ databaseChangeLog {
         // Check that the paths of the included change set is relative. The 2nd change set did not
         // come from the "include", but it will be relative as well..
         assertTrue changeSets[0].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
+        assertNull changeSets[0].logicalFilePath
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
+        assertNull changeSets[1].logicalFilePath
+
+        // Take a look at the contexts.  The change that came in with the include should have one,
+        // the change in the root changelog should not.
+        assertEquals 'myContext', changeSets[0].changeLog.includeContextFilter.toString()
+        assertNull changeSets[1].changeLog.includeContextFilter
+
+        verifyIncludedPreconditions rootChangeLog
+    }
+
+    /**
+     * Try including a file with an filename that is relative to the working directory, but this
+     * time, use a logicalFilePath.  This test will set a context but not a contextFilter to prove
+     * we can still handle the old context parameter
+     */
+    @Test
+    void includeRelativeToWorkDirWithLogicalFilePAth() {
+        def includedChangeLogFile = createFileFrom(INCLUDED_CHANGELOG_DIR, '.groovy', """
+databaseChangeLog {
+  preConditions {
+    runningAs(username: 'ssaliman')
+  }
+
+  changeSet(author: 'ssaliman', id: 'included-change-set') {
+    renameTable(oldTableName: 'prosaic_table_name', newTableName: 'monkey')
+  }
+}
+""")
+        includedChangeLogFile = includedChangeLogFile.path // should be relative.
+        includedChangeLogFile = includedChangeLogFile.replaceAll("\\\\", "/")
+
+        def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
+databaseChangeLog {
+  preConditions {
+    dbms(type: 'mysql')
+  }
+  include(file: '${includedChangeLogFile}', context: 'myContext', errorIfMissing: false, logicalFilePath: 'logical/path')
+  changeSet(author: 'ssaliman', id: 'ROOT_CHANGE_SET') {
+    addColumn(tableName: 'monkey') {
+      column(name: 'emotion', type: 'varchar(50)')
+    }
+  }
+}
+""")
+
+        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
+        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+
+        assertNotNull rootChangeLog
+        def changeSets = rootChangeLog.changeSets
+        assertNotNull changeSets
+        assertEquals 2, changeSets.size()
+        assertEquals 'included-change-set', changeSets[0].id
+        assertEquals 'ROOT_CHANGE_SET', changeSets[1].id
+
+        // Make sure the file we were including was indeed a relative path.
+        assertTrue includedChangeLogFile.startsWith(TMP_CHANGELOG_PATH)
+        // Check that the paths of the included change set is the logical path we used. The 2nd
+        // change set did not come from the "include", but it will be relative.
+        assertEquals 'logical/path', changeSets[0].filePath
+        assertEquals 'logical/path', changeSets[0].logicalFilePath
+        assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
+        assertNull changeSets[1].logicalFilePath
 
         // Take a look at the contexts.  The change that came in with the include should have one,
         // the change in the root changelog should not.
@@ -285,7 +349,9 @@ databaseChangeLog {
         // Check that the paths of the included change set is relative. The 2nd change set did not
         // come from the "include", so it will be relative as well..
         assertTrue changeSets[0].filePath.startsWith(INCLUDED_CHANGELOG_PATH)
+        assertNull changeSets[0].logicalFilePath
         assertTrue changeSets[1].filePath.startsWith(TMP_CHANGELOG_PATH)
+        assertNull changeSets[1].logicalFilePath
 
         verifyIncludedPreconditions rootChangeLog
 

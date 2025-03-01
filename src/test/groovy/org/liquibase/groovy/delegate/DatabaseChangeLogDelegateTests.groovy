@@ -271,7 +271,8 @@ databaseChangeLog()
                       ignore: true,
                       runWith: 'my_executor',
                       runWithSpoolFile: 'my.log',
-                      filePath: 'file_path') {
+                      filePath: 'file_path',
+                      logicalFilePath: 'logical_file_path') {
                 dropTable(tableName: 'monkey')
             }
         }
@@ -284,6 +285,7 @@ databaseChangeLog()
         assertTrue changeSet.alwaysRun // the property doesn't match xml or docs.
         assertTrue changeSet.runOnChange
         assertEquals 'file_path', changeSet.filePath
+        assertEquals 'logical_file_path', changeSet.logicalFilePath
         assertEquals 'testing', changeSet.contextFilter.contexts.toArray()[0]
         assertEquals 'test_label', changeSet.labels.toString()
         assertEquals 'mysql', changeSet.dbmsSet.toArray()[0]
@@ -308,12 +310,12 @@ databaseChangeLog()
     }
 
     /**
-     * Test creating a changeSet with all supported attributes.  We support filePath and
-     * logicalFilepath.  This test uses logicalFilePath, and it skips setting the contextFilter
-     * parameter to prove that we can still use the older context parameter.
+     * Test creating a changeSet with all supported attributes, but this time, skip setting the
+     * contextFilter parameter to prove that we can still use the older context parameter.  This
+     * test also skips the filePath attribute to prove we inherit from the changelog.
      */
     @Test
-    void changeSetFullLogicalFilePath() {
+    void changeSetFullNoContextFilter() {
         def changeLog = buildChangeLog {
             changeSet(id: 'monkey-change',
                       author: 'stevesaliman',
@@ -331,7 +333,7 @@ databaseChangeLog()
                       ignore: true,
                       runWith: 'my_executor',
                       runWithSpoolFile: 'my.log',
-                      logicalFilePath: 'file_path') {
+                      logicalFilePath: 'logical_file_path') {
                 dropTable(tableName: 'monkey')
             }
         }
@@ -342,7 +344,9 @@ databaseChangeLog()
         assertEquals 'stevesaliman', changeLog.changeSets[0].author
         assertTrue changeLog.changeSets[0].alwaysRun // the property doesn't match xml or docs.
         assertTrue changeLog.changeSets[0].runOnChange
-        assertEquals 'file_path', changeLog.changeSets[0].filePath
+        // This one should inherit from the database change log
+        assertEquals 'src/test/changelog/mock-changelog.groovy', changeLog.changeSets[0].filePath
+        assertEquals 'logical_file_path', changeLog.changeSets[0].logicalFilePath
         assertEquals 'testing', changeLog.changeSets[0].contextFilter.contexts.toArray()[0]
         assertEquals 'test_label', changeLog.changeSets[0].labels.toString()
         assertEquals 'mysql', changeLog.changeSets[0].dbmsSet.toArray()[0]

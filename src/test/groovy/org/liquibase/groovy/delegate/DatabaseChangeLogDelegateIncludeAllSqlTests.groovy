@@ -1072,6 +1072,7 @@ databaseChangeLog {
              objectQuotingStrategy: 'QUOTE_ONLY_RESERVED_WORDS',
              created: 'test_created',
              ignore: true,
+             logicalFilePath: 'logical/path',
              runWith: 'my_executor',
              runWithSpoolFile: 'my.log',
              idKeepsExtension: true,
@@ -1113,6 +1114,7 @@ databaseChangeLog {
         assertEquals ObjectQuotingStrategy.QUOTE_ONLY_RESERVED_WORDS, changeSet.objectQuotingStrategy
         assertEquals 'test_created', changeSet.created
         assertTrue changeSet.ignore
+        assertEquals 'logical/path', changeSet.logicalFilePath
         assertEquals 'my_executor', changeSet.runWith
         assertEquals 'my.log', changeSet.runWithSpoolFile
 

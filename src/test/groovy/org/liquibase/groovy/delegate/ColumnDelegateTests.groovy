@@ -90,6 +90,7 @@ class ColumnDelegateTests {
         assertNull column.generationType
         assertNull column.remarks
         assertNull column.descending
+        assertNull column.included
         assertNull column.constraints
     }
 
@@ -136,6 +137,7 @@ class ColumnDelegateTests {
         assertNull column.generationType
         assertNull column.remarks
         assertNull column.descending
+        assertNull column.included
         assertNotNull column.constraints
     }
 
@@ -181,7 +183,8 @@ class ColumnDelegateTests {
                     defaultOnNull: true,
                     generationType: 'someType',
                     remarks: 'No comment',
-                    descending: true
+                    descending: true,
+                    included: true
             )
         }
 
@@ -217,6 +220,7 @@ class ColumnDelegateTests {
         assertEquals 'someType', column.generationType
         assertEquals 'No comment', column.remarks
         assertTrue column.descending
+        assertTrue column.included
         assertNull column.constraints
     }
 
@@ -335,6 +339,7 @@ class ColumnDelegateTests {
                     generationType: 'someType',
                     remarks: 'No comment',
                     descending: false,
+                    included: true,
                     beforeColumn: 'before',
                     afterColumn: 'after',
                     position: 5
@@ -373,6 +378,7 @@ class ColumnDelegateTests {
         assertEquals 'someType', column.generationType
         assertEquals 'No comment', column.remarks
         assertFalse column.descending
+        assertTrue column.included
         assertEquals 'before', column.beforeColumn
         assertEquals 'after', column.afterColumn
         assertEquals 5, column.position
@@ -422,9 +428,11 @@ class ColumnDelegateTests {
                     generationType: 'someType',
                     remarks: 'No comment',
                     descending: false,
+                    included: true,
                     header: 'columnHeader',
                     index: 5,
-                    allowUpdate: false
+                    allowUpdate: false,
+                    nullPlaceholder: '<null>'
             )
         }
 
@@ -460,9 +468,11 @@ class ColumnDelegateTests {
         assertEquals 'someType', column.generationType
         assertEquals 'No comment', column.remarks
         assertFalse column.descending
+        assertTrue column.included
         assertEquals 'columnHeader', column.header
         assertEquals 5, column.index
         assertFalse column.allowUpdate
+        assertEquals '<null>', column.nullPlaceholder
         assertNull column.constraints
     }
 

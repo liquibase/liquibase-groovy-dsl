@@ -7,6 +7,8 @@ Changes for 4.0.1
 
 - Fixed a bug that prevented preconditions from being serialized, with thanks to @momosetkn
 
+- Added support for Liquibase 4.31.1, adding new attributes introduced since 4.26.
+
 Changes for 4.0.0
 =================
 
