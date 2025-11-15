@@ -27,19 +27,27 @@ import liquibase.exception.ChangeLogParseException
  * The map created by this delegate will not do database changeLog property  substitution, that will
  * be up to the caller.
  *
+ * Used by both customPrecondition and customChange
+ *
  * @author Steven C. Saliman
  */
-class KeyValueDelegate {
-    def map = [:]
-    def changeSetId = '<unknown>' // used for error messages
+@groovy.transform.CompileStatic
+class KeyValueDelegate extends Delegatee<Tag> {
+    final Map<String, Object> map = [:]
+    protected final String parentName
+    enum Tag {param}
+    KeyValueDelegate(String parentName, String changeSetId){
+        super(null, changeSetId)
+        this.parentName = parentName
+    }
 
     /**
      * This method supports the standard XML like method of passing a name/value pair inside a
      * {@code param} method
      * @param params
      */
-    void param(Map params) {
-        def mapKey = null
+    void param(Map<String, Object> params) {
+        String mapKey = null
         def mapValue = null
         params.each { key, value ->
             if ( key == "name" ) {
@@ -47,13 +55,13 @@ class KeyValueDelegate {
             } else if ( key == "value" ) {
                 mapValue = value
             } else {
-                throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${key}' is an invalid property for 'customPrecondition' parameters.")
+                throw new ChangeLogParseException("'$changeId': '${key}' is an invalid property for '$parentName' parameters.")
             }
         }
 
         // we don't need a value, but we do need a key
         if ( mapKey == null ) {
-            throw new ChangeLogParseException("ChangeSet '${changeSetId}': 'customPrecondition' parameters need at least a name.")
+            throw new ChangeLogParseException("'${changeId}': '$parentName' parameters need at least a name.")
         }
         map[mapKey] = mapValue
     }
@@ -64,9 +72,11 @@ class KeyValueDelegate {
      * @param name
      * @param args
      */
-    void methodMissing(String name, args) {
-        if ( args != null && args.size() == 1 ) {
-            map[name] = args[0]
+    protected def methodMissing(String name, args) {
+        if ( args != null && args instanceof Object[]) {
+            if(args.size() == 1 ) {
+                map[name] = args[0]
+            }
         } else {
             map[name] = args
         }

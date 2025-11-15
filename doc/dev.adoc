@@ -1,0 +1,72 @@
+
+== Overview
+Each element having children have a corresponding `<tag name capitalized>Delegate` class used
+for children handling (and for the autocomplete).
+Each tag has a method in its parent `...Delegate` class with the same name.
+The method parameters are the properties of the object. The changes and preconditions are generated
+from the latest XSD with the `gen/.../APIGenerator`. Others are hardcoded. The mandatory
+parameters(properties) are in front of the parameter list without default value.
+Each method has 3 versions:
+ . Simple Map + Closure? for backward compatibility and for flexibility to handle future changes
+ . Map + <All parameters with type and name> for mixed positional and named parameter calls
+ . <All parameters with type and name> for only positional parameter calls
+
+Positional parameter order::
+- required are in front
+- closure for children is always last
+- Most unique meaning first:
+ column related change: column name, table name, ...
+ index: e.g. indexExists index name, tablename
+
+Some tags have mutually exclusive parameters like `property/` `path` | `name`+`value` or
+`createProcedure`:  `path` | `procedureText` child closure. There are multiple method definitions with
+different parameter lists to match these requirements
+
+To improve error messages, the changelog tree definition has to be defined somehow. Since the methods
+for child tags needed to be created for the auto-complete feature, those are also used as the tree
+definition: method name and parameter information read from the corresponding `...Delegate` class
+by collecting public methods using reflection.
+
+WARN:: The project needs to be built using Gradle, or special care needs to be taken to set the
+`parameters` javac option otherwise the argument names cannot be taken from the method definitions
+with reflection!
+
+In `missingMethod` error handling those can help both
+. to identify the method should be called (e.g. in case only the parameter type is different `String`
+ instead of `int`) *All methods must have a single Map version also*
+. also to generate more descriptive error messages eliminating the need to read the Liquibase
+documentation site
+
+=== Remaining tasks
+- compiled version parser: solution for `include(All)`
+- Add doc for `.../column` methods
+- positional test for each column type
+- test for `constraint`s
+- Add error test cases to all changes (argument set twice, wrong number)
+- store multiple method definitions for elements having 2 exclusive parameters sets like
+`sql` / `createProcedure` / `dropColumn / createView`
+- Invalid argument check based on the new method declarations `DatabaseChangeLogDelegate` / ...
+- check reference of low-level error messages like update / whereParams / param
+- Add possible values to enum conversion errors
+- Create annotation & add to arguments & check runtime against the liquibase version
+- Once the https://github.com/liquibase/liquibase/pull/7275[PR for Parser hierarchy change] is
+  merged with the change few lines of code, the converter can convert from YAML + JSON formats also
+- Display warning when an attribute set is not supported by the Liquibase version executing the script
+
+- Add duplicate validation + methods to `ConstraintDelegate` since `column` accepts children of `constrains` directly like:
+```groovy
+ createTable 'monkey', {
+   column 'colA', 'int', {
+      primaryKey true
+   }
+ }
+```
+
+=== Ideas
+- publish a new version with the same version number as Liquibase matching the method definition if
+any element definition change
+- Restore backward compatibility to earlier Liquibase versions. current: 4.24
+
+Syntax extensions::
+- `include/update` shall accept simple Map with name value pairs beside `column` calls
+- column` / `constraint` / `primaryKey` shall accept primaryKeyName as String also making primaryKeyName obsolete / optional

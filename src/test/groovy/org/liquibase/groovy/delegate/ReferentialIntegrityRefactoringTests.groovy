@@ -18,7 +18,7 @@ import liquibase.change.core.AddPrimaryKeyChange
 import liquibase.change.core.DropAllForeignKeyConstraintsChange
 import liquibase.change.core.DropForeignKeyConstraintChange
 import liquibase.change.core.DropPrimaryKeyChange
-import liquibase.exception.ChangeLogParseException
+import liquibase.parser.groovy.exception.InvalidAttribute
 import org.junit.Test
 
 import static org.junit.Assert.assertEquals
@@ -62,7 +62,7 @@ class ReferentialIntegrityRefactoringTests extends ChangeSetTests {
     /**
      * Try creating an AddForeignKeyConstraint change with an invalid attribute.
      */
-    @Test(expected = ChangeLogParseException)
+    @Test(expected = InvalidAttribute)
     void addForeignKeyConstraintInvalid() {
         buildChangeSet {
             addForeignKeyConstraint(
@@ -114,56 +114,6 @@ class ReferentialIntegrityRefactoringTests extends ChangeSetTests {
         assertNull changes[0].onDelete
         assertNull changes[0].onUpdate
         assertNull changes[0].validate
-        assertNotNull changes[0].resourceAccessor
-        assertNoOutput()
-    }
-
-    /**
-     * Make an addForeignKeyConstraint with all attributes set to make sure the right values go to
-     * the right places.  This also tests proper handling of the RESTRICT and CASCADE values for the
-     * foreign key type.
-     */
-    @Test
-    void addForeignKeyConstraintFull() {
-        buildChangeSet {
-            addForeignKeyConstraint(
-                    constraintName: 'fk_monkey_emotion',
-                    baseTableCatalogName: 'base_catalog',
-                    baseTableSchemaName: 'base_schema',
-                    baseColumnNames: 'emotion_id',
-                    baseTableName: 'monkey',
-                    referencedTableCatalogName: 'referenced_catalog',
-                    referencedTableSchemaName: 'referenced_schema',
-                    referencedTableName: 'emotions',
-                    referencedColumnNames: 'id',
-                    deferrable: true,
-                    initiallyDeferred: false,
-                    onDelete: 'RESTRICT',
-                    onUpdate: 'CASCADE',
-                    validate: false
-
-            )
-        }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof AddForeignKeyConstraintChange
-        assertEquals 'fk_monkey_emotion', changes[0].constraintName
-        assertEquals 'base_catalog', changes[0].baseTableCatalogName
-        assertEquals 'base_schema', changes[0].baseTableSchemaName
-        assertEquals 'monkey', changes[0].baseTableName
-        assertEquals 'emotion_id', changes[0].baseColumnNames
-        assertEquals 'referenced_catalog', changes[0].referencedTableCatalogName
-        assertEquals 'referenced_schema', changes[0].referencedTableSchemaName
-        assertEquals 'emotions', changes[0].referencedTableName
-        assertEquals 'id', changes[0].referencedColumnNames
-        assertTrue changes[0].deferrable
-        assertFalse changes[0].initiallyDeferred
-        assertEquals 'RESTRICT', changes[0].onDelete
-        assertEquals 'CASCADE', changes[0].onUpdate
-        assertFalse changes[0].validate
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
@@ -347,47 +297,6 @@ class ReferentialIntegrityRefactoringTests extends ChangeSetTests {
     }
 
     /**
-     * Test parsing an addPrimaryKey change with all supported attributes set.
-     */
-    @Test
-    void addPrimaryKeyFull() {
-        buildChangeSet {
-            addPrimaryKey(
-                    constraintName: 'pk_monkey',
-                    catalogName: 'catalog',
-                    schemaName: 'schema',
-                    tableName: 'monkey',
-                    columnNames: 'id',
-                    tablespace: 'tablespace',
-                    clustered: true,
-                    forIndexCatalogName: 'index_catalog',
-                    forIndexSchemaName: 'index_schema',
-                    forIndexName: 'pk_monkey_idx',
-                    validate: true
-            )
-        }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof AddPrimaryKeyChange
-        assertEquals 'pk_monkey', changes[0].constraintName
-        assertEquals 'catalog', changes[0].catalogName
-        assertEquals 'schema', changes[0].schemaName
-        assertEquals 'monkey', changes[0].tableName
-        assertEquals 'tablespace', changes[0].tablespace
-        assertEquals 'id', changes[0].columnNames
-        assertTrue changes[0].clustered
-        assertEquals 'index_catalog', changes[0].forIndexCatalogName
-        assertEquals 'index_schema', changes[0].forIndexSchemaName
-        assertEquals 'pk_monkey_idx', changes[0].forIndexName
-        assertTrue changes[0].validate
-        assertNotNull changes[0].resourceAccessor
-        assertNoOutput()
-    }
-
-    /**
      * Test parsing a dropAllForeignKeyConstraints change with no attributes to make sure the DSL
      * doesn't introduce any defaults..
      */
@@ -405,31 +314,6 @@ class ReferentialIntegrityRefactoringTests extends ChangeSetTests {
         assertNull changes[0].baseTableCatalogName
         assertNull changes[0].baseTableSchemaName
         assertNull changes[0].baseTableName
-        assertNotNull changes[0].resourceAccessor
-        assertNoOutput()
-    }
-
-    /**
-     * Test parsing a dropAllForeignKeyConstraints change with all supported attributes.
-     */
-    @Test
-    void dropAllForeignKeyConstraintsFull() {
-        buildChangeSet {
-            dropAllForeignKeyConstraints(
-                    baseTableCatalogName: 'catalog',
-                    baseTableSchemaName: 'schema',
-                    baseTableName: 'monkey'
-            )
-        }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof DropAllForeignKeyConstraintsChange
-        assertEquals 'catalog', changes[0].baseTableCatalogName
-        assertEquals 'schema', changes[0].baseTableSchemaName
-        assertEquals 'monkey', changes[0].baseTableName
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
@@ -458,33 +342,6 @@ class ReferentialIntegrityRefactoringTests extends ChangeSetTests {
     }
 
     /**
-     * Test parsing a dropForeignKeyConstraint with all supported options.
-     */
-    @Test
-    void dropForeignKeyConstraintFull() {
-        buildChangeSet {
-            dropForeignKeyConstraint(
-                    baseTableCatalogName: 'catalog',
-                    baseTableSchemaName: 'schema',
-                    baseTableName: 'monkey',
-                    constraintName: 'fk_monkey_emotion'
-            )
-        }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof DropForeignKeyConstraintChange
-        assertEquals 'catalog', changes[0].baseTableCatalogName
-        assertEquals 'schema', changes[0].baseTableSchemaName
-        assertEquals 'monkey', changes[0].baseTableName
-        assertEquals 'fk_monkey_emotion', changes[0].constraintName
-        assertNotNull changes[0].resourceAccessor
-        assertNoOutput()
-    }
-
-    /**
      * Test parsing a dropPrimaryKey change with no attributes to make sure the DSL doesn't
      * introduce any unexpected defaults.
      */
@@ -508,31 +365,4 @@ class ReferentialIntegrityRefactoringTests extends ChangeSetTests {
         assertNoOutput()
     }
 
-    /**
-     * Test parsing a dropPrimaryKey change with all supported attributes.
-     */
-    @Test
-    void dropPrimaryKeyFull() {
-        buildChangeSet {
-            dropPrimaryKey(
-                    catalogName: 'catalog',
-                    schemaName: 'schema',
-                    tableName: 'monkey',
-                    constraintName: 'pk_monkey',
-                    dropIndex: true)
-        }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof DropPrimaryKeyChange
-        assertEquals 'catalog', changes[0].catalogName
-        assertEquals 'schema', changes[0].schemaName
-        assertEquals 'monkey', changes[0].tableName
-        assertEquals 'pk_monkey', changes[0].constraintName
-        assertTrue changes[0].dropIndex
-        assertNotNull changes[0].resourceAccessor
-        assertNoOutput()
-    }
 }

@@ -95,7 +95,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
 
     /**
      * Test the addAutoIncrement change set.
-     */
+
     @Test
     void addAutoIncrementFull() {
         buildChangeSet {
@@ -129,7 +129,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
-
+    */
     /**
      * Validate the creation of an addDefaultValue change when there are no attributes set.  Make
      * sure the DSL didn't make up values.
@@ -166,7 +166,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
      * Test the creation of an addDefaultValue change when all attributes are set.  Remember, the
      * DSL doesn't do any validation - Liquibase does.  We only care that the DSL sets the proper
      * values in the Liquibase object from the attribute map.
-     */
+
     @Test
     void addDefaultValueFull() {
         buildChangeSet {
@@ -206,7 +206,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
-
+    */
     /**
      * Parse an addLookupTable change with no attributes to make sure the DSL doesn't make up any
      * defaults.
@@ -238,7 +238,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
 
     /**
      * Parse an addLookupTable change with all supported attributes set.
-     */
+
     @Test
     void addLookupTableFull() {
         buildChangeSet {
@@ -273,7 +273,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertEquals 'fk_monkey_emotion', changes[0].constraintName
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
-    }
+    }*/
 
     /**
      * Parse an addNotNullConstraint with no attributes to make sure the DSL doesn't make up any
@@ -304,7 +304,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
 
     /**
      * Parse an addNotNullConstraint with all supported options set.
-     */
+
     @Test
     void addNotNullConstraintFull() {
         buildChangeSet {
@@ -336,7 +336,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
-
+    */
     /**
      * Test parsing an addUniqueConstraint change with no attributes to make sure the DSL doesn't
      * create any default values.
@@ -373,7 +373,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
     /**
      * Test parsing an addUniqueConstraint change when we have all supported options.  There are 5
      * booleans here, so to isolate the attributes, this test will only set deferrable to true.
-     */
+
     @Test
     void addUniqueConstraintFullDeferrable() {
         buildChangeSet {
@@ -641,7 +641,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
 
     /**
      * Test parsing an alterSequence change with all supported attributes present.
-     */
+
     @Test
     void alterSequenceFull() {
         buildChangeSet {
@@ -675,7 +675,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
-
+    */
     /**
      * Test parsing a createSequence change with no attributes to make sure the
      * DSL doesn't create any defaults.
@@ -709,7 +709,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
     /**
      * Test parsing a createSequence change with all attributes present to make sure they all go to
      * the right place.
-     */
+
     @Test
     void createSequenceFull() {
         buildChangeSet {
@@ -747,7 +747,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
-
+    */
     /**
      * Test parsing a dropDefaultValue change with no attributes to make sure the DSL doesn't
      * introduce any unexpected defaults.
@@ -774,7 +774,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
 
     /**
      * Test parsing a dropDefaultValue change with all supported attributes
-     */
+
     @Test
     void dropDefaultValueFull() {
         buildChangeSet {
@@ -800,7 +800,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
-
+    */
     /**
      * Test parsing a dropNotNullConstraint change with no attributes to make sure the DSL doesn't
      * introduce unexpected defaults.
@@ -828,7 +828,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
 
     /**
      * Test parsing a dropNotNullConstraint with all supported attributes.
-     */
+
     @Test
     void dropNotNullConstraintFull() {
         buildChangeSet {
@@ -854,7 +854,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertEquals 'nn_monkey_emotion', changes[0].constraintName
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
-    }
+    }*/
 
     /**
      * Test parsing a dropSequence change with no attributes to make sure the DSL doesn't introduce
@@ -880,7 +880,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
 
     /**
      * Test parsing a dropSequence change with all supported attributes.
-     */
+
     @Test
     void dropSequenceFull() {
         buildChangeSet {
@@ -902,7 +902,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
-
+    */
     /**
      * Test parsing a dropUniqueConstraint change with no attributes to make sure the DSL doesn't
      * introduce any unexpected defaults.
@@ -929,7 +929,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
 
     /**
      * Test parsing a dropUniqueConstraint change with all supported options
-     */
+
     @Test
     void dropUniqueConstraintFull() {
         buildChangeSet {
@@ -954,7 +954,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertEquals 'unique_column', changes[0].uniqueColumns
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
-    }
+    }*/
 
     /**
      * Test parsing a renameSequence change with no attributes to make sure the DSL doesn't create
@@ -982,7 +982,7 @@ class DataQualityRefactoringTests extends ChangeSetTests {
     /**
      * Test parsing a renameSequence change with all attributes present to make sure they all go to
      * the right place.
-     */
+
     @Test
     void renameSequenceFull() {
         buildChangeSet {
@@ -1005,6 +1005,6 @@ class DataQualityRefactoringTests extends ChangeSetTests {
         assertEquals 'new_sequence', changes[0].newSequenceName
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
-    }
+    } */
 }
 

@@ -14,41 +14,102 @@
 
 package org.liquibase.groovy.delegate
 
+import groovy.transform.CompileStatic
 import liquibase.change.ConstraintsConfig
-import liquibase.exception.ChangeLogParseException
-import liquibase.util.PatchedObjectUtil;
+import liquibase.changelog.DatabaseChangeLog
+import liquibase.parser.groovy.exception.ParseErrorWithFileNLine
 
+@CompileStatic
+class ConstraintDelegate extends Delegatee<Tag> {
+    enum Tag {constraints}
+    protected ConstraintsConfig constraint
 
-class ConstraintDelegate {
-    def constraint
-    def databaseChangeLog
-    def changeSetId = '<unknown>' // used for error messages
-    def changeName = '<unknown>' // used for error messages
-
-
-    ConstraintDelegate() {
+    ConstraintDelegate(DatabaseChangeLog dbChangeLog, String changeId, String parent) {
+        super( dbChangeLog, changeId, parent)
         constraint = new ConstraintsConfig()
     }
 
+/**
+ *
+ * @param nullable
+ * @param notNullConstraintName
+ * @param primaryKey
+ * @param primaryKeyName
+ * @param primaryKeyTablespace
+ * @param references
+ * @param referencedTableCatalogName
+ * @param referencedTableSchemaName
+ * @param referencedTableName
+ * @param referencedColumnNames
+ * @param unique
+ * @param uniqueConstraintName
+ * @param checkConstraint
+ * @param deleteCascade
+ * @param foreignKeyName
+ * @param initiallyDeferred
+ * @param deferrable
+ * @param validateNullable
+ * @param validateUnique
+ * @param validatePrimaryKey
+ * @param validateForeignKey
+ */
+    void constraints(Boolean nullable, Boolean primaryKey = null, Boolean unique = null,
+                     String references = null, String foreignKeyName = null,
+                     String primaryKeyName = null, String uniqueConstraintName = null,
+                     String referencedTableName= null, String referencedColumnNames = null,
+                     String referencedTableCatalogName = null, String referencedTableSchemaName = null,
+                     String notNullConstraintName = null, String primaryKeyTablespace = null,
+                     String checkConstraint = null, Boolean deleteCascade = null,
+                     Boolean initiallyDeferred = null, Boolean deferrable = null,
+                     Boolean validateNullable = null, Boolean validateUnique = null,
+                     Boolean validatePrimaryKey = null, Boolean validateForeignKey = null) {
+        constraints argsAsMap(Tag.constraints, nullable, primaryKey, unique,
+                    references, foreignKeyName,
+                    primaryKeyName, uniqueConstraintName,
+                    referencedTableName= null, referencedColumnNames,
+                    referencedTableCatalogName, referencedTableSchemaName,
+                    notNullConstraintName, primaryKeyTablespace,
+                    checkConstraint, deleteCascade,
+                    initiallyDeferred, deferrable, validateNullable, validateUnique,
+                    validatePrimaryKey, validateForeignKey )
+    }
 
-    def constraints(Map params = [:]) {
-        params.each { key, value ->
-            try {
-                def expandedValue = DelegateUtil.expandExpressions(value, databaseChangeLog)
-                PatchedObjectUtil.setProperty(constraint, key, expandedValue)
-            } catch (RuntimeException e) {
-                // Rethrow as an ChangeLogParseException with a more helpful message than you'll get
-                // from the Liquibase helper.
-                throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${key}' is not a valid constraint attribute for '${changeName}' changes.", e)
-            }
+    void constraints(Map ǃ,
+                     Boolean nullable, Boolean primaryKey = null, Boolean unique = null,
+                     String references = null, String foreignKeyName = null,
+                     String primaryKeyName = null, String uniqueConstraintName = null,
+                     String referencedTableName= null, String referencedColumnNames = null,
+                     String referencedTableCatalogName = null, String referencedTableSchemaName = null,
+                     String notNullConstraintName = null, String primaryKeyTablespace = null,
+                     String checkConstraint = null, Boolean deleteCascade = null,
+                     Boolean initiallyDeferred = null, Boolean deferrable = null,
+                     Boolean validateNullable = null, Boolean validateUnique = null,
+                     Boolean validatePrimaryKey = null, Boolean validateForeignKey = null) {
+        constraints argsAsMap(Tag.constraints, ǃ, nullable, primaryKey, unique,
+           references, foreignKeyName,
+           primaryKeyName, uniqueConstraintName,
+           referencedTableName= null, referencedColumnNames,
+           referencedTableCatalogName, referencedTableSchemaName,
+           notNullConstraintName, primaryKeyTablespace,
+           checkConstraint, deleteCascade,
+           initiallyDeferred, deferrable, validateNullable, validateUnique,
+           validatePrimaryKey, validateForeignKey )
+    }
+
+    def constraints(Map params) {
+        if(!params) {
+            error new ParseErrorWithFileNLine("`constraint` element requires at least one argument to be set. " +
+                    "Valid arguments:" + constraint.serializableFields.toListString()
+            )
         }
+        setProps(constraint, params)
     }
 
     def methodMissing(String name, params) {
         if ( constraint.hasProperty(name) ) {
-            PatchedObjectUtil.setProperty(constraint, name, DelegateUtil.expandExpressions(params[0], databaseChangeLog))
+            setProp(constraint, name, (params as Object[])[0])
         } else {
-            throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${name}' is not a valid child element of constraint closures in ${changeName} changes")
+            super.methodMissing(name, params)
         }
     }
 }

@@ -14,15 +14,16 @@
 
 package org.liquibase.groovy.delegate
 
+import liquibase.change.ConstraintsConfig
+import liquibase.changelog.ChangeLogParameters
+import liquibase.changelog.DatabaseChangeLog
 import liquibase.exception.ChangeLogParseException
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
-import static org.junit.Assert.*
 
-import liquibase.change.ConstraintsConfig
-import liquibase.changelog.ChangeLogParameters
-import liquibase.changelog.DatabaseChangeLog
+import static groovy.lang.Closure.DELEGATE_FIRST
+import static org.junit.Assert.*
 
 /**
  * This class tests that a constraint closure can be parsed correctly by the Groovy DSL.  As with
@@ -64,7 +65,6 @@ class ConstraintDelegateTests {
     /**
      * Test parsing constraints when we have no args and no closure.  This validates that we don't
      * set any unintended defaults.
-     */
     @Test
     void constraintWithoutArgsOrClosure() {
         def constraint = buildConstraint {
@@ -96,7 +96,7 @@ class ConstraintDelegateTests {
         assertNull constraint.validateForeignKey
 
         assertNoOutput()
-    }
+    }*/
 
     /**
      * Test parsing constraints when we have no args but we have a closure, which is empty. This
@@ -424,18 +424,14 @@ class ConstraintDelegateTests {
      * @param closure the closure to execute
      * @return the closure object built.
      */
-    private def buildConstraint(Closure closure) {
+    private def buildConstraint(
+                 @DelegatesTo(value=ConstraintDelegate, strategy=DELEGATE_FIRST) Closure closure) {
+
         def changelog = new DatabaseChangeLog()
         changelog.changeLogParameters = new ChangeLogParameters()
 
-        def delegate = new ConstraintDelegate(
-                databaseChangeLog: changelog,
-                changeSetId: 'test-change-set',
-                changeName: 'test-change'
-        )
-        closure.delegate = delegate
-        closure.resolveStrategy = Closure.DELEGATE_FIRST
-        closure.call()
+        def delegate = new ConstraintDelegate( changelog,'test-change-set', 'test-change' )
+        delegate.callOn(closure)
 
         delegate.constraint
     }

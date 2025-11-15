@@ -15,27 +15,35 @@ package org.liquibase.groovy.delegate
 
 import liquibase.change.visitor.AddColumnChangeVisitor
 import liquibase.changelog.ChangeLogParameters
+import liquibase.changelog.ChangeSet
 import liquibase.changelog.DatabaseChangeLog
 import liquibase.database.ObjectQuotingStrategy
 import liquibase.exception.ChangeLogParseException
-import liquibase.parser.ChangeLogParser
-import liquibase.parser.ChangeLogParserFactory
-import liquibase.parser.ext.GroovyLiquibaseChangeLogParser
 import liquibase.precondition.Precondition
 import liquibase.precondition.core.DBMSPrecondition
 import liquibase.precondition.core.PreconditionContainer
+import liquibase.precondition.core.PreconditionContainer.ErrorOption
+import liquibase.precondition.core.PreconditionContainer.FailOption
 import liquibase.resource.DirectoryResourceAccessor
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
-
+import liquibase.parser.ext.GroovyLiquibaseChangeLogParser.Arg
 import java.lang.reflect.Field
+import org.liquibase.groovy.delegate.DatabaseChangeLogDelegate.Tag
+import liquibase.parser.groovy.exception.*
 
 import static org.junit.Assert.assertEquals
 import static org.junit.Assert.assertFalse
 import static org.junit.Assert.assertNotNull
 import static org.junit.Assert.assertNull
 import static org.junit.Assert.assertTrue
+import static liquibase.parser.ext.GroovyLiquibaseChangeLogParser.*
+import static org.liquibase.groovy.helper.util.*
+import static liquibase.database.ObjectQuotingStrategy.*
+import static org.liquibase.groovy.helper.constants.*
+import static liquibase.precondition.core.PreconditionContainer.OnSqlOutputOption.*
+import static org.liquibase.groovy.delegate.DelegateUtil.cast
 
 /**
  * One of several test classes for the {@link DatabaseChangeLogDelegate}.  The number of tests for
@@ -44,21 +52,12 @@ import static org.junit.Assert.assertTrue
  *
  * @author Steven C. Saliman
  */
-class DatabaseChangeLogDelegateTests {
+class DatabaseChangeLogDelegateTests extends DatabaseChangeLogTests {
     // Let's define some paths and directories.  These should all be relative.
-    static final ROOT_CHANGELOG_PATH = "src/test/changelog"
-    static final TMP_CHANGELOG_PATH = ROOT_CHANGELOG_PATH + "/tmp"
-    static final TMP_CHANGELOG_DIR = new File(TMP_CHANGELOG_PATH)
-    static final EMPTY_CHANGELOG = "${ROOT_CHANGELOG_PATH}/empty-changelog.groovy"
-    static final SIMPLE_CHANGELOG = "${ROOT_CHANGELOG_PATH}/simple-changelog.groovy"
-    static final FULL_CHANGELOG = "${ROOT_CHANGELOG_PATH}/full-changelog.groovy"
-    // This one is not a real file, but it looks like a legit file.  It is used by tests that
-    // build changelogs on the fly.
-    static final MOCK_CHANGELOG = "${ROOT_CHANGELOG_PATH}/mock-changelog.groovy"
-
-    def resourceAccessor
-    ChangeLogParserFactory parserFactory
-
+    static final File TMP_CHANGELOG_DIR = new File(TMP_CHANGELOG_PATH)
+    static final String EMPTY_CHANGELOG = "${ROOT_CHANGELOG_PATH}/empty-changelog.groovy"
+    static final String SIMPLE_CHANGELOG = "${ROOT_CHANGELOG_PATH}/simple-changelog.groovy"
+    static final String FULL_CHANGELOG = "${ROOT_CHANGELOG_PATH}/full-changelog.groovy"
 
     @Before
     void registerParser() {
@@ -68,8 +67,7 @@ class DatabaseChangeLogDelegateTests {
         // "/some/path/to/dir/.", just like what Liquibase does.
         def f = new File(".")
         resourceAccessor = new DirectoryResourceAccessor(new File(f.absolutePath))
-        parserFactory = ChangeLogParserFactory.instance
-        ChangeLogParserFactory.getInstance().register(new GroovyLiquibaseChangeLogParser())
+
         // make sure we start with clean temporary directories before each test
         TMP_CHANGELOG_DIR.deleteDir()
         TMP_CHANGELOG_DIR.mkdirs()
@@ -107,6 +105,7 @@ class DatabaseChangeLogDelegateTests {
         assertTrue "Parser result was not a DatabaseChangeLog", changeLog instanceof DatabaseChangeLog
         assertEquals '.', changeLog.logicalFilePath
         assertEquals "myContext", changeLog.contextFilter.toString()
+        assertEquals ObjectQuotingStrategy.QUOTE_ALL_OBJECTS, changeLog.objectQuotingStrategy
 
         def changeSets = changeLog.changeSets
         assertEquals 1, changeSets.size()
@@ -130,6 +129,23 @@ class DatabaseChangeLogDelegateTests {
         def changeSets = changeLog.changeSets
         // We don't care much about how this one parses, just that it did parse.
         assertTrue changeSets.size() > 1
+    }
+
+    @Test
+    void parseFullChangelog4() {
+        String fullChangeLog = "${ROOT_CHANGELOG_PATH}/full-changelog4.groovy"
+        def parser = parserFactory.getParser(fullChangeLog, resourceAccessor)
+
+        assertNotNull "Groovy changelog parser was not found", parser
+
+        def changeLog = parser.parse(fullChangeLog, new ChangeLogParameters(), resourceAccessor)
+        assertNotNull "Parsed DatabaseChangeLog was null", changeLog
+        assertTrue "Parser result was not a DatabaseChangeLog", changeLog instanceof DatabaseChangeLog
+        assertEquals '.', changeLog.logicalFilePath
+
+        def changeSets = changeLog.changeSets
+        // We don't care much about how this one parses, just that it did parse.
+        assertTrue changeSets.size() > 1
 
     }
 
@@ -142,19 +158,16 @@ databaseChangeLog()
         parser.parse(changeLogFile.path, new ChangeLogParameters(), resourceAccessor)
     }
 
-
     @Test
     void parsingDatabaseChangeLogAsProperty() {
-        File changeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
-    databaseChangeLog = {
+        ["databaseChangeLog = {}"
+        ,"databaseChangeLog {}"
+        ,"databaseChangeLog: {}"
+        ].eachWithIndex { String entry, int i ->
+            assertNotNull "case $i: Parsed DatabaseChangeLog was null",
+                parseDatabaseChangeLog( entry)
+        }
     }
-    """)
-        ChangeLogParser parser = parserFactory.getParser(changeLogFile.path, resourceAccessor)
-        DatabaseChangeLog changeLog = parser.parse(changeLogFile.path, null, resourceAccessor)
-
-        assertNotNull "Parsed DatabaseChangeLog was null", changeLog
-    }
-
 
     /**
      * Test processing preconditions with almost all the options.  The onSqlOutput and onUpdateSql
@@ -162,25 +175,18 @@ databaseChangeLog()
      */
     @Test
     void preconditionParametersWithOnUpdateSql() {
-        def closure = {
-            preConditions(onFail: 'WARN', onError: 'MARK_RAN', onUpdateSql: 'TEST', onFailMessage: 'fail-message!!!1!!1one!', onErrorMessage: 'error-message') {
 
-            }
+        def databaseChangeLog = buildChangeLog{
+            preConditions(onFail: 'WARN', onError: 'MARK_RAN', onUpdateSql: 'TEST', onFailMessage: 'fail-message!!!1!!1one!', onErrorMessage: 'error-message') {}
         }
 
-        def databaseChangeLog = new DatabaseChangeLog('changelog.xml')
-        databaseChangeLog.changeLogParameters = new ChangeLogParameters()
-        def delegate = new DatabaseChangeLogDelegate(databaseChangeLog)
-        closure.delegate = delegate
-        closure.call()
-
         // Liquibase now wraps the container in a container.  I don't know why.
-        def preconditions = databaseChangeLog.preconditions.nestedPreconditions[0]
+        Precondition preconditions = databaseChangeLog.preconditions.nestedPreconditions[0]
         assertNotNull preconditions
         assertTrue preconditions instanceof PreconditionContainer
-        assertEquals PreconditionContainer.FailOption.WARN, preconditions.onFail
-        assertEquals PreconditionContainer.ErrorOption.MARK_RAN, preconditions.onError
-        assertEquals PreconditionContainer.OnSqlOutputOption.TEST, preconditions.onSqlOutput
+        assertEquals FailOption.WARN, preconditions.onFail
+        assertEquals ErrorOption.MARK_RAN, preconditions.onError
+        assertEquals TEST, preconditions.onSqlOutput
         assertEquals 'fail-message!!!1!!1one!', preconditions.onFailMessage
         assertEquals 'error-message', preconditions.onErrorMessage
     }
@@ -191,27 +197,21 @@ databaseChangeLog()
      */
     @Test
     void preconditionParametersWithOnSqlOutput() {
-        def closure = {
-            preConditions(onFail: 'WARN', onError: 'MARK_RAN', onSqlOutput: 'TEST', onFailMessage: 'fail-message!!!1!!1one!', onErrorMessage: 'error-message') {
+        [ named: { preConditions(onFail: 'WARN', onError: 'MARK_RAN', onSqlOutput: TEST,
+                                onFailMessage: fail, onErrorMessage: err) {}}
+         ,positional: { preConditions( 'WARN', 'MARK_RAN', fail, err, TEST) {}}
+         ,mixed: { preConditions( 'WARN', 'MARK_RAN', fail, onSqlOutput: TEST, err) {}}
+        ].each { c, cl ->
+            try {
+                DatabaseChangeLog changelog = buildChangeLog cl
 
+                // Liquibase now wraps the container in a container.  I don't know why.
+                assertPropsSet ChangeSetPreconditionTests.expPropsPreConditions,
+                        cast(changelog.preconditions.nestedPreconditions[0], PreconditionContainer)
+            } catch (e) {
+                failedCase(c, e)
             }
         }
-
-        def databaseChangeLog = new DatabaseChangeLog('changelog.xml')
-        databaseChangeLog.changeLogParameters = new ChangeLogParameters()
-        def delegate = new DatabaseChangeLogDelegate(databaseChangeLog)
-        closure.delegate = delegate
-        closure.call()
-
-        // Liquibase now wraps the container in a container.  I don't know why.
-        def preconditions = databaseChangeLog.preconditions.nestedPreconditions[0]
-        assertNotNull preconditions
-        assertTrue preconditions instanceof PreconditionContainer
-        assertEquals PreconditionContainer.FailOption.WARN, preconditions.onFail
-        assertEquals PreconditionContainer.ErrorOption.MARK_RAN, preconditions.onError
-        assertEquals PreconditionContainer.OnSqlOutputOption.TEST, preconditions.onSqlOutput
-        assertEquals 'fail-message!!!1!!1one!', preconditions.onFailMessage
-        assertEquals 'error-message', preconditions.onErrorMessage
     }
 
     /**
@@ -307,6 +307,70 @@ databaseChangeLog()
         def param = changeSetParams[changeSetParams.size() - 1] // The last one is ours.
         assertEquals 'myParam', param.key
         assertEquals 'myValue', param.value
+    }
+
+    static final Map changeSetExpectedArgs = [
+            id: 'monkey-change',
+            author: 'stevesaliman',
+            dbmsSet: ['mysql'] as Set,
+            alwaysRun: true,
+            runOnChange: true,
+            //context: 'should_be_overridden_by_contextFilter',
+            contextFilter: 'testing',
+            labels: 'test_label',
+            runInTransaction: false,
+            failOnError: true,
+            onValidationFail: ChangeSet.ValidationFailOption.MARK_RAN,
+            objectQuotingStrategy: QUOTE_ALL_OBJECTS,
+            created: 'test_created',
+            runOrder: 'last',
+            ignore: true,
+            runWith: 'my_executor',
+            runWithSpoolFile: 'my.log',
+            logicalFilePath: 'logical_file_path',
+            comments: strComment
+            ]
+
+    @Test
+    void changeSetFullPositionalStringConvert() {
+        def changeLog =
+             buildChangeLog changeSetExpectedArgs, { it.with {
+                    changeSet(id, author,
+                            'y',
+                            contextFilter, alwaysRun, labels,
+                            dbmsSet.first(), logicalFilePath,
+                            'MARK_RAN', 0,
+                            runOrder, failOnError,
+                            'QUOTE_ALL_OBJECTS', runWith,
+                            created, runWithSpoolFile, ignore) {
+                        comment 'comment'
+                    }
+                }
+            }
+        assertNotNull changeLog
+        assertEquals 1, changeLog.changeSets.size()
+        assertPropsSet changeSetExpectedArgs, changeLog.changeSets[0]
+    }
+
+    @Test
+    void changeSetFullPositional() {
+        def changeLog =
+             buildChangeLog changeSetExpectedArgs, { it.with {
+                changeSet(id, author,
+                          runOnChange,
+                          contextFilter, alwaysRun, labels,
+                          dbmsSet.first(), logicalFilePath,
+                          onValidationFail, runInTransaction,
+                          runOrder, failOnError,
+                          objectQuotingStrategy, runWith,
+                          created, runWithSpoolFile, ignore) {
+                    comment('comment')
+                }
+            }
+        }
+        assertNotNull changeLog
+        assertEquals 1, changeLog.changeSets.size()
+        assertPropsSet changeSetExpectedArgs, changeLog.changeSets[0]
     }
 
     /**
@@ -495,13 +559,7 @@ databaseChangeLog()
         def changeLog = buildChangeLog {
             property([:])
         }
-
-        // change log parameters are not exposed through the API, so get them using reflection.
-        def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
-        f.setAccessible(true)
-        def properties = f.get(changeLogParameters)
-        def property = properties[properties.size() - 1] // The last one is ours.
+        def property = lastParam(changeLog)
         assertNull property.key
         assertNull property.value
         assertNull property.validDatabases
@@ -521,13 +579,7 @@ databaseChangeLog()
             property(name: 'emotion', value: 'angry')
         }
 
-        // change log parameters are not exposed through the API, so get them using reflection.
-        // Also, there are
-        def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
-        f.setAccessible(true)
-        def properties = f.get(changeLogParameters)
-        def property = properties[properties.size() - 1] // The last one is ours.
+        def property = lastParam changeLog
         assertNull property.validDatabases
         def contexts = property.validContexts?.contexts
         assertTrue contexts == null || contexts.size() == 0
@@ -552,12 +604,7 @@ databaseChangeLog()
                     'global': true)
         }
 
-        // change log parameters are not exposed through the API, so get them using reflection.
-        def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
-        f.setAccessible(true)
-        def properties = f.get(changeLogParameters)
-        def property = properties[properties.size() - 1] // The last one is ours.
+        def property = lastParam(changeLog)
         assertEquals 'emotion', property.key
         assertEquals 'angry', property.value
         assertEquals 'mysql', property.validDatabases[0]
@@ -581,17 +628,24 @@ databaseChangeLog()
                     'global': 'true')
         }
 
-        // change log parameters are not exposed through the API, so get them using reflection.
-        def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
-        f.setAccessible(true)
-        def properties = f.get(changeLogParameters)
-        def property = properties[properties.size() - 1] // The last one is ours.
+        def property = lastParam changeLog
         assertEquals 'emotion', property.key
         assertEquals 'angry', property.value
         assertEquals 'mysql', property.validDatabases[0]
         assertEquals 'test', property.validContexts.contexts.toArray()[0]
         assertEquals 'test_label', property.labels.toString()
+    }
+
+    @Test
+    void propertyFullPositionalGlobal() {
+        def changeLog = buildChangeLog expectedPropertyArgs, {
+            it.with {
+                property key, value, validContexts, labels, validDatabases.first()
+            }
+        }
+
+        def property = lastParam changeLog
+        assertMapEquals expectedPropertyArgs, property.properties
     }
 
     /**
@@ -634,23 +688,13 @@ databaseChangeLog()
         def propertyFile = createFileFrom(TMP_CHANGELOG_DIR, '.properties', """
 emotion=angry
 """)
-        propertyFile = propertyFile.path
-        propertyFile = propertyFile.replaceAll("\\\\", "/")
-        // Now make it relative - add 1 to the index to eat the "/"
-        propertyFile = propertyFile.substring(ROOT_CHANGELOG_PATH.length() +1)
+        def relFileName = makeRelativeTo(propertyFile, ROOT_CHANGELOG_PATH)
 
         def changeLog = buildChangeLog {
-            property(file: "${propertyFile}", relativeToChangelogFile: true)
+            property(file: relFileName, relativeToChangelogFile: true)
         }
 
-
-        // change log parameters are not exposed through the API, so get them using reflection.
-        // Also, there are
-        def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
-        f.setAccessible(true)
-        def properties = f.get(changeLogParameters)
-        def property = properties[properties.size() - 1] // The last one is ours.
+        def property = lastParam(changeLog)
         assertEquals 'emotion', property.key
         assertEquals 'angry', property.value
         assertNull property.validDatabases
@@ -660,33 +704,78 @@ emotion=angry
         assertTrue labels == null || labels.size() == 0
     }
 
-    /**
-     * Try including a property from a file when we do have a context and dbms..
-     */
+    /** Try including a property from a file when we do have a context and dbms.. */
     @Test
     void propertyFromFileFull() {
-        def propertyFile = createFileFrom(TMP_CHANGELOG_DIR, '.properties', """
-emotion=angry
-""")
-        propertyFile = propertyFile.path
-        propertyFile = propertyFile.replaceAll("\\\\", "/")
+        File propertyFile = createFileFrom(TMP_CHANGELOG_DIR, '.prop', "emotion=angry\n")
+        String propertyFileName = propertyFile.path.replaceAll("\\\\", "/")
 
         def changeLog = buildChangeLog {
-            property(file: "${propertyFile}", relativeToChangelogFile: false, dbms: 'mysql', contextFilter: 'test', labels: 'test_label')
+            property(file: propertyFileName, relativeToChangelogFile: false, dbms: 'mysql',
+                    contextFilter: 'test', labels: 'test_label')
         }
 
-        // change log parameters are not exposed through the API, so get them using reflection.
-        // Also, there are
-        def changeLogParameters = changeLog.changeLogParameters
-        Field f = changeLogParameters.getClass().getDeclaredField("globalParameters")
-        f.setAccessible(true)
-        def properties = f.get(changeLogParameters)
-        def property = properties[properties.size() - 1] // The last one is ours.
-        assertEquals 'emotion', property.key
-        assertEquals 'angry', property.value
-        assertEquals 'mysql', property.validDatabases[0]
-        assertEquals 'test', property.validContexts.contexts.toArray()[0]
-        assertEquals 'test_label', property.labels.toString()
+        def property = lastParam changeLog
+        assertMapEquals expectedPropertyArgs, property.properties
+    }
+
+    static Map expectedPropertyArgs = [
+            key: 'emotion'
+            ,value: 'angry'
+            ,validDatabases: ['mysql']
+            ,validContexts: 'test'
+            ,labels: 'test_label'
+    ]
+
+    /** Try including a property from a file when we do have a context and dbms.. */
+    @Test
+    void propertyFromFileFullPositional() {
+        File propertyFile = createFileFrom(TMP_CHANGELOG_DIR, '.prop', "emotion=angry\n")
+
+        String relFileName = makeRelativeTo(propertyFile, ROOT_CHANGELOG_PATH)
+
+        def changeLog = buildChangeLog expectedPropertyArgs, {
+            it.with {
+                property relFileName, true, validContexts, labels, validDatabases.first( )
+            }
+        }
+
+        def property = lastParam changeLog
+        assertMapEquals expectedPropertyArgs, property.properties
+    }
+
+    /** Try including a property from a file when we do have a context and dbms.. */
+//    @Test
+//    void propertyFromFileFullPositionalWithConvert() {
+//        File propertyFile = createFileFrom(TMP_CHANGELOG_DIR, '.prop', "emotion=angry\n")
+//
+//        String relFileName = makeRelativeTo(propertyFile, ROOT_CHANGELOG_PATH)
+//
+//        def changeLog = buildChangeLog {
+//            expectedPropertyArgs.with {
+//                property relFileName, true, validContexts, labels, validDatabases.first(), 'y'
+//            }
+//        }
+//
+//        def property = lastParam changeLog
+//        assertMapEquals expectedPropertyArgs, property.properties
+//    }
+
+    /** Try including a property from a file when we do have a context and dbms.. */
+    @Test
+    void propertyFromFileFullPositionalLocal() {
+        File propertyFile = createFileFrom(TMP_CHANGELOG_DIR, '.prop', "emotion=angry\n")
+
+        String propertyFileName = propertyFile.path.replaceAll("\\\\", "/")
+
+        def changeLog = buildChangeLog expectedPropertyArgs, {
+            it.with {
+                property(propertyFileName, false, validContexts, labels, validDatabases.first(), false)
+            }
+        }
+
+        def property = lastParam(changeLog, false)
+        assertMapEquals expectedPropertyArgs, property.properties
     }
 
     /**
@@ -799,67 +888,183 @@ emotion=angry
         assertEquals 'afterColumn', visitor.remove
     }
 
-    /**
-     * Helper method that builds a changeSet from the given closure.  Tests will use this to test
-     * parsing the various closures that make up the Groovy DSL.
-     * @param closure the closure containing changes to parse.
-     * @return the changeSet, with parsed changes from the closure added.
-     */
-    private def buildChangeLog(Closure closure) {
-        return buildChangeLog(null, closure)
+    static String errMessage(String c, String expectedMsg){
+        /case "$c" expected error msg "$expectedMsg" != "%s"/
     }
 
-    /**
-     * Helper method that builds a changeSet from the given closure.  Tests will use this to test
-     * parsing the various closures that make up the Groovy DSL.
-     * @param closure the closure containing changes to parse.
-     * @return the changeSet, with parsed changes from the closure added.
-     */
-    private def buildChangeLog(ChangeLogParameters parameters, Closure closure) {
-        def changelog = new DatabaseChangeLog(MOCK_CHANGELOG)
-        if ( parameters == null ) {
-            changelog.changeLogParameters = new ChangeLogParameters()
-        } else {
-            changelog.changeLogParameters = parameters
-        }
-        closure.delegate = new DatabaseChangeLogDelegate(changelog)
-        closure.delegate.resourceAccessor = resourceAccessor
-        closure.resolveStrategy = Closure.DELEGATE_FIRST
-        closure.call()
-        return changelog
-    }
-
-
-    private File createFileFrom(directory, suffix, text) {
-        createFileFrom(directory, 'liquibase-', suffix, text)
-    }
-
-    private File createFileFrom(directory, prefix, suffix, text) {
-        def file = File.createTempFile(prefix, suffix, directory)
-        file << text
-    }
-
-    /**
-     * Helper method to extract the actual preconditions from a list of potential preconditions.
-     * <p>
-     * Liquibase often nests the actual preconditions in a precondition container.  This method
-     * will walk through a collection of objects, extracting preconditions and recursively checking
-     * nested items in a container to get just the preconditions themselves.
-     * @param preconditions the collection of preconditions to search
-     * @return a list of actual preconditions.
-     */
-    private def extractPreconditions(preconditions) {
-        def actualPreconditions = []
-        preconditions?.each { pc ->
-            if ( pc instanceof PreconditionContainer ) {
-                actualPreconditions.addAll extractPreconditions(pc.nestedPreconditions)
-            } else if ( pc instanceof Precondition) {
-                actualPreconditions.add pc
+    @Test
+    void parseDatabaseChangeLogMissingClosureErrors() {
+        [ //Fails io("databaseChangeLog 'a', logicalFilePath:'b' {}", databaseChangeLogInvalidArgs('a')),
+          "databaseChangeLog 'a', logicalFilePath:'b'": new MissingClosure(dbChangeLogTagName),
+          "databaseChangeLog 'a'": new MissingClosure(dbChangeLogTagName),
+          'databaseChangeLog': new MissingClosure(dbChangeLogTagName)
+        ].each {
+            String clue = /case "$it.key"/
+            try {
+                parseDatabaseChangeLog(it.key)
+            } catch (ParseErrorWithFileNLine e) {
+                assertEquals(clue, it.value.class, e.class)
+                (it.value as ParseErrorWithFileNLine).with {
+                    it.fileNameAndLine = ' @memtest:1'
+                    assertEquals clue, it.message, e.message
+                }
             }
         }
-        return actualPreconditions
     }
 
+    @Test
+    void parseDatabaseChangeLogErrors() {
+        [ "nonExistent () {}" : unrecognizedRootElement('nonExistent').message,
+          "nonExistent 'a'"   : unrecognizedRootElement('nonExistent').message,
+          "nonExistent ()"    : unrecognizedRootElement('nonExistent').message,
+          "nonExistent {}"    : unrecognizedRootElement('nonExistent').message,
+          "nonExistent"       : unrecognizedRootElement('nonExistent').message
+        ].each {  key, expMsg ->
+            String errMsg = errMessage key, expMsg
+            try{
+                parseDatabaseChangeLog(key)
+                assertFalse(String.format( errMsg, ''), true)
+            } catch (ChangeLogParseException e) {
+                assertTrue(String.format( errMsg, e.message), e.message.startsWith(expMsg))
+            }
+        }
+    }
 
+    static String changeLog2(String s) {  "$dbChangeLogTagName: $s"  }
+
+    @Test
+    void parseDatabaseChangeLog1stLevelArgSetTwiceErrors() {
+        def chLog = new DatabaseChangeLogDelegate(null, resourceAccessor)
+        use(DelegateeCategory) {
+            [ "preConditions( HALT, onFail: HALT){}": chLog.attributeSetTwice(Tag.preConditions, 'onFail'),
+              "preConditions( HALT, OnError.HALT, onError: 'HALT'){}": chLog.attributeSetTwice(Tag.preConditions, 'onError'),
+              "preConditions( 'HALT', onFail: 'HALT'){}": chLog.attributeSetTwice(Tag.preConditions, 'onFail'),
+              "property 'a', 'v', name: 'b'": chLog.attributeSetTwice(Tag.property, Arg.name),
+              "property 'a', file: 'b'": chLog.attributeSetTwice(Tag.property, Arg.file),
+              "include 'a', file: 'b'": chLog.attributeSetTwice(Tag.include, Arg.file),
+              "includeAll 'a', path: 'b'": chLog.attributeSetTwice(Tag.includeAll, Arg.path),
+              "changeSet ('a', id: 'b') {}": chLog.attributeSetTwice(Tag.changeSet, 'id'),
+            ].each {key, expMsg ->
+                String errMsg = errMessage key, expMsg
+                try {
+                    parseDatabaseChangeLog "databaseChangeLog{\n$key\n}"
+                    fail(String.format(errMsg, ''))
+                } catch (ChangeLogParseException e) {
+                    assertTrue(String.format(errMsg, e.message), e.message.startsWith(expMsg))
+                }
+            }
+        }
+    }
+
+    @Test
+    void parseDatabaseChangeLog1stLevelErrors() {
+        def chLog = new DatabaseChangeLogDelegate(null, resourceAccessor)
+        use(DelegateeCategory<Tag>) {
+            [
+            // No such property: 1 for class: liquibase.precondition.core.PreconditionContainer$FailOption
+            //        'preConditions (1) {}' : chLog.invalidArgs(Tag.preConditions, 1, {}),
+            "property ''"      : changeLog2(nonEmptyParameterRequiredFor(Tag.property, Arg.file)),
+            'property'         : chLog.invalidArgs(Tag.property),
+
+            'preConditions'        : chLog.missingClosure(Tag.preConditions),
+            // 'preConditions () {} {}': chLog.invalidArgs(Tag.preConditions, {}, {}),
+            //'preConditions {}{}'   : chLog.invalidArgs(Tag.preConditions, {}, {}),
+            "preConditions 'a'"    : chLog.missingClosure(Tag.preConditions),
+
+            'include'         : chLog.invalidArgs(Tag.include, null),
+            'include ()'        : chLog.invalidArgs(Tag.include, null),
+            // 'include () {} {}' : chLog.invalidArgs(Tag.include, {}, {}),
+            //'include (1) {}'   : chLog.invalidArgs(Tag.include, 1, {}),
+            // 'include {}{}'     : chLog.invalidArgs(Tag.include, {}, {}),
+
+            //"property 'a'", changeLog (invalidArgs(property,'a')),
+
+            'changeSet'         : chLog.missingClosure(Tag.changeSet),
+            //'changeSet (1) {}'  : chLog.invalidArgs(Tag.changeSet, 1, {}),
+            //'changeSet () {} {}': chLog.invalidArgs(Tag.changeSet, {}, {}),
+            //'changeSet {}{}'    : chLog.invalidArgs(Tag.changeSet, {}, {}),
+            "changeSet 'a'"     : chLog.missingClosure(Tag.changeSet),
+            "changeSet 'a', id: 'b' {}": chLog.invalidElement('b'),
+
+            "nonExistent 'a'"   : chLog.invalidElement('nonExistent'),
+            "nonExistent ()"    : chLog.invalidElement('nonExistent'),
+            "nonExistent {}"    : chLog.invalidElement('nonExistent'),
+            "nonExistent"       : chLog.invalidElement('nonExistent'),
+            "nonExistent () {}" : chLog.invalidElement('nonExistent')
+            /* Fails. Should fail with invalid name
+             'property () {} {}': chLog.invalidArgs(Tag.property, {}, {}),
+             'property {}{}'    : chLog.invalidArgs(Tag.property, {}, {}),
+            */
+            ].each { key, expMsg ->
+                String errMsg = errMessage key, expMsg
+                try {
+                    parseDatabaseChangeLog "databaseChangeLog{\n$key\n}"
+                    assertFalse(String.format(errMsg, ''), true)
+                } catch (ChangeLogParseException e) {
+                    assertTrue(String.format(errMsg, e.message), e.message.startsWith(expMsg))
+                }
+            }
+        }
+    }
+
+    @Test
+    void parseDatabaseChangeLogParams() {
+        [
+         'ObjectQuotingStrategy as String': "databaseChangeLog('1', 'c', 'QUOTE_ALL_OBJECTS') {}"
+        ,'mixed 1': "databaseChangeLog( contextFilter: 'c', '1', objectQuotingStrategy:QUOTE_ALL_OBJECTS) {}"
+        ,'mixed 2': "databaseChangeLog('1',  contextFilter: 'c', objectQuotingStrategy:'QUOTE_ALL_OBJECTS') {}"
+        ,'mapped': "databaseChangeLog(logicalFilePath:'1', contextFilter: 'c', objectQuotingStrategy:QUOTE_ALL_OBJECTS) {}"
+        ,'import *': "databaseChangeLog('1', 'c', QUOTE_ALL_OBJECTS) {}"
+        ,'non String logicalFilePath':  "databaseChangeLog (1, 'c','QUOTE_ALL_OBJECTS') {}"
+//         ,'closure as value':'databaseChangeLog () {} {}'
+//         ,'closure as value2':'databaseChangeLog {}{}'
+        ].each {
+            try {
+                DatabaseChangeLog log = parseDatabaseChangeLog it.value
+                assertEquals it.key, '1', log.logicalFilePath
+                assertEquals it.key, 'c', log.contextFilter.toString()
+                assertEquals it.key, QUOTE_ALL_OBJECTS, log.objectQuotingStrategy
+            } catch(e) {
+                failedCase(it.key, e)
+            }
+        }
+    }
+
+    @Test
+    void propertyNameValuePositionalParams() {
+        [
+         'positionalNameValueOnly': "property 'n', 'v'", // name + value
+//         'invalid file':'property (1) {}'
+//         'mixed 1': "property value: 'v', 'n'", // Calls file param version
+//         'mixed 2': "property ('n',  value: 'v')",
+        ].each {
+            DatabaseChangeLog changeLog = parseDatabaseChangeLog "databaseChangeLog{\n${it.value}\n}"
+            // change log parameters are not exposed through the API, so get them using reflection.
+            def params = changeLog.changeLogParameters
+            assertEquals 'v', params.getValue('n', changeLog)
+        }
+    }
+
+    @Test
+    void changeSetPositionalParams() {
+        [
+         'positional': "changeSet('1', 'a'){}", // name + value
+         'map only':"changeSet(id:'1', author: 'a'){}",
+         'mixed 1': "changeSet(author: 'a', '1'){}",
+         'mixed 2': "changeSet('1',  author: 'a'){}",
+         'mixed different type': "changeSet(1, author: 'a'){}",
+         'positional different type': "changeSet(1, 'a'){}",
+        ].each {
+            try {
+                DatabaseChangeLog changeLog = parseDatabaseChangeLog "databaseChangeLog{\n${it.value}\n}"
+                assertEquals 1, changeLog.changeSets.size()
+                ChangeSet c = changeLog.changeSets[0] as ChangeSet
+                assertEquals 'id', '1', c.id
+                assertEquals 'author', 'a', c.author
+            } catch(e) {
+                failedCase(it.key, e)
+            }
+        }
+    }
 }
 

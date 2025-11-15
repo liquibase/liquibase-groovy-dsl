@@ -14,9 +14,20 @@
 
 package org.liquibase.groovy.delegate
 
+import groovy.transform.CompileStatic
+import groovy.transform.SelfType
+import liquibase.change.AddColumnConfig
+import liquibase.change.Change
+import liquibase.change.ChangeWithColumns
 import liquibase.change.ColumnConfig
-import liquibase.exception.ChangeLogParseException
-import liquibase.util.PatchedObjectUtil;
+import liquibase.change.core.LoadDataColumnConfig
+import liquibase.serializer.LiquibaseSerializable
+import liquibase.statement.DatabaseFunction
+import liquibase.statement.SequenceCurrentValueFunction
+import liquibase.statement.SequenceNextValueFunction
+
+import static groovy.lang.Closure.DELEGATE_ONLY
+import static DelegateUtil.callOn
 
 /**
  * This class is a delegate for nested columns found frequently in the DSL, such as inside the
@@ -35,92 +46,664 @@ import liquibase.util.PatchedObjectUtil;
  *
  * @author Steven C. Saliman
  */
-class ColumnDelegate {
-    def columnConfigClass = ColumnConfig
-    def databaseChangeLog
-    def changeSetId = '<unknown>' // used for error messages
-    def changeName = '<unknown>' // used for error messages
-    def change // the change to populate
+@CompileStatic
+abstract class ColumnDelegate<T extends ColumnConfig> extends ChangeDelegate {
+    protected final Class<T> columnConfigClass
+    protected ChangeWithColumns getChange() {super.change as ChangeWithColumns}
+
+    ColumnDelegate(ChangeSetDelegate changeSet, ChangeWithColumns change, Class<T> columnConfigClass = ColumnConfig ) {
+        super(changeSet, change as Change )
+        this.columnConfigClass = columnConfigClass
+    }
 
     /**
      * Parse a single column entry in a closure.
      * @param params the attributes to set.
      * @param closure a child closure to call, such as a constraint clause
      */
-    def column(Map params, Closure closure = null) {
-        def column = columnConfigClass.newInstance()
+    T column(Map params) {
+        T column = columnConfigClass.newInstance()
 
-        // Process the column params
-        params.each { key, value ->
-            try {
-                PatchedObjectUtil.setProperty(column, key, DelegateUtil.expandExpressions(value, databaseChangeLog))
-            } catch (RuntimeException e) {
-                // Rethrow as an ChangeLogParseException with a more helpful message than you'll get
-                // from the Liquibase helper.
-                throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${key}' is not a valid column attribute for '${changeName}' changes.", e)
-            }
-        }
-
-        // Process nested closure (constraints)
-        if ( closure ) {
-            def constraintDelegate = new ConstraintDelegate(databaseChangeLog: databaseChangeLog,
-                    changeSetId: changeSetId,
-                    changeName: changeName)
-            closure.delegate = constraintDelegate
-            closure.resolveStrategy = Closure.DELEGATE_FIRST
-            closure.call()
-            column.constraints = constraintDelegate.constraint
-        }
+        setProps(column, params)
 
         // Try to add the column to the change.  If we're dealing with something like a "delete"
         // change, we'll get an exception, which we'll rethrow as a parse exception to tell the user
         // that columns are not allowed in that change.
-        try {
-            change.addColumn(column)
-        } catch (MissingMethodException e) {
-            throw new ChangeLogParseException("ChangeSet '${changeSetId}': columns are not allowed in '${changeName}' changes.", e)
-        }
+        //try {
+        change.addColumn(column)
+//        } catch (MissingMethodException e) {
+//            throw new ChangeLogParseException("ChangeSet '${changeSetId}': columns are not allowed in '${changeName}' changes.", e)
+//        }
+        column
+    }
+
+    protected Map<String, Object> argsToMap(Object... args) {
+        MethodDef method = methodDefs['column']
+        argsAsMap 'column', method, args
+    }
+}
+
+@CompileStatic
+abstract class ColumnDelegateHasConstraint<T extends ColumnConfig> extends ColumnDelegate<T> {
+    ColumnDelegateHasConstraint(ChangeSetDelegate changeSet, ChangeWithColumns change, Class<T> columnConfigClass) {
+        super(changeSet, change, columnConfigClass)
     }
 
     /**
+     * Parse a single column entry in a closure.
+     * @param params the attributes to set.
+     * @param closure a child closure to call, such as a constraint clause
+     */
+    def column(Map params,
+               @DelegatesTo(value = ConstraintDelegate, strategy = DELEGATE_ONLY) Closure constraints) {
+        T col = column(params)
+        // Process nested closure (constraints)
+        if ( constraints ) {
+            ConstraintDelegate constraintDelegate = new ConstraintDelegate(databaseChangeLog, changeId, parent)
+            constraintDelegate.callOn(constraints)
+            col.constraints = constraintDelegate.constraint
+        }
+    }
+}
+
+@CompileStatic
+class DropColumnDelegate extends ColumnDelegate<ColumnConfig> {
+    DropColumnDelegate(ChangeSetDelegate changeSet, ChangeWithColumns change, Class columnConfigClass = ColumnConfig) {
+        super(changeSet, change, columnConfigClass)
+    }
+
+    void column(String name) {
+        column([name: name])
+    }
+}
+
+@CompileStatic
+class CreateIndexDelegate extends DropColumnDelegate {
+    CreateIndexDelegate(ChangeSetDelegate changeSet, ChangeWithColumns change) {
+        super(changeSet, change, AddColumnConfig)
+    }
+
+    void column(String name, Boolean included = null) {
+        column([name: name, included: included])
+    }
+}
+
+@CompileStatic
+class CreateTableDelegate extends ColumnDelegateHasConstraint<ColumnConfig> {
+    CreateTableDelegate(ChangeSetDelegate changeSet, ChangeWithColumns change) {
+        super( changeSet, change, ColumnConfig)
+    }
+
+    void column(String name,
+                String type,
+                Boolean computed=null,
+                String defaultValue=null,
+                Number defaultValueNumeric=null,
+                Date defaultValueDate=null,
+                Boolean defaultValueBoolean=null,
+                DatabaseFunction defaultValueComputed=null,
+                SequenceNextValueFunction defaultValueSequenceNext=null,
+                String defaultValueConstraintName=null,
+                Boolean autoIncrement=null,
+                String generationType=null,
+                Boolean defaultOnNull=null,
+                BigInteger startWith=null,
+                BigInteger incrementBy=null,
+                String remarks=null,
+                @DelegatesTo(value = ConstraintDelegate, strategy = DELEGATE_ONLY) Closure constraints) {
+        column argsToMap(name,
+                type,
+                computed,
+                defaultValue,
+                defaultValueNumeric,
+                defaultValueDate,
+                defaultValueBoolean,
+                defaultValueComputed,
+                defaultValueSequenceNext,
+                defaultValueConstraintName,
+                autoIncrement,
+                generationType,
+                defaultOnNull,
+                startWith,
+                incrementBy,
+                remarks), constraints
+    }
+
+    void column(String name,
+                String type,
+                Boolean computed=null,
+                String defaultValue=null,
+                Number defaultValueNumeric=null,
+                Date defaultValueDate=null,
+                Boolean defaultValueBoolean=null,
+                DatabaseFunction defaultValueComputed=null,
+                SequenceNextValueFunction defaultValueSequenceNext=null,
+                String defaultValueConstraintName=null,
+                Boolean autoIncrement=null,
+                String generationType=null,
+                Boolean defaultOnNull=null,
+                BigInteger startWith=null,
+                BigInteger incrementBy=null,
+                String remarks=null){
+        column argsToMap(name,
+                type,
+                computed,
+                defaultValue,
+                defaultValueNumeric,
+                defaultValueDate,
+                defaultValueBoolean,
+                defaultValueComputed,
+                defaultValueSequenceNext,
+                defaultValueConstraintName,
+                autoIncrement,
+                generationType,
+                defaultOnNull,
+                startWith,
+                incrementBy,
+                remarks)
+    }
+
+    void column(Map ǃ,
+                String name,
+                String type,
+                Boolean computed=null,
+                String defaultValue=null,
+                Number defaultValueNumeric=null,
+                Date defaultValueDate=null,
+                Boolean defaultValueBoolean=null,
+                DatabaseFunction defaultValueComputed=null,
+                SequenceNextValueFunction defaultValueSequenceNext=null,
+                String defaultValueConstraintName=null,
+                Boolean autoIncrement=null,
+                String generationType=null,
+                Boolean defaultOnNull=null,
+                BigInteger startWith=null,
+                BigInteger incrementBy=null,
+                String remarks=null,
+                @DelegatesTo(value = ConstraintDelegate, strategy = DELEGATE_ONLY)
+                        Closure constraints) {
+        column argsToMap(ǃ,
+                name,
+                type,
+                computed,
+                defaultValue,
+                defaultValueNumeric,
+                defaultValueDate,
+                defaultValueBoolean,
+                defaultValueComputed,
+                defaultValueSequenceNext,
+                defaultValueConstraintName,
+                autoIncrement,
+                generationType,
+                defaultOnNull,
+                startWith,
+                incrementBy,
+                remarks), constraints
+    }
+
+    void column(Map ǃ,
+                String name,
+                String type,
+                Boolean computed=null,
+                String defaultValue=null,
+                Number defaultValueNumeric=null,
+                Date defaultValueDate=null,
+                Boolean defaultValueBoolean=null,
+                DatabaseFunction defaultValueComputed=null,
+                SequenceNextValueFunction defaultValueSequenceNext=null,
+                String defaultValueConstraintName=null,
+                Boolean autoIncrement=null,
+                String generationType=null,
+                Boolean defaultOnNull=null,
+                BigInteger startWith=null,
+                BigInteger incrementBy=null,
+                String remarks=null){
+        column argsToMap(ǃ,
+                name,
+                type,
+                computed,
+                defaultValue,
+                defaultValueNumeric,
+                defaultValueDate,
+                defaultValueBoolean,
+                defaultValueComputed,
+                defaultValueSequenceNext,
+                defaultValueConstraintName,
+                autoIncrement,
+                generationType,
+                defaultOnNull,
+                startWith,
+                incrementBy,
+                remarks)
+    }
+}
+
+@CompileStatic
+class LoadDataDelegate extends ColumnDelegate<LoadDataColumnConfig>{
+    LoadDataDelegate(ChangeSetDelegate changeSet, ChangeWithColumns change) {
+        super(changeSet, change, LoadDataColumnConfig)
+    }
+
+    /** Column definition.
+     Either {@code name} or {@code index} must be defined to be able to identify the column in the CSV
+     If the column name in the CSV is different than in the table, {@code header} needs to be defined to the column name in the CSV.
+      {@code defaultValue[*]} attributes can define values for empty fields.
+     <br>Params:<dl>
+     <dt><b>name</b></dt>
+     <dd>Name of the table column. If the column name in CSV is different {@code header} or {@code index} shall be also defined</dd>
+     <dt>type</dt>
+     <dd>Type of the column. If not defined, it is taken from the database
+      Special value 'skip' force not to change the column content</dd>
+      <dt>defaultValue[*]</dt>
+      <dd>One of the {@code defaultValue[*]} attributes can define value for empty values in CSV</dd>
+      <dt>header</dt>
+      <dd>Name of the column in the CSV file from which the value for the column will be taken if it's different from the column name. Ignored if {@code index} is also defined.</dd>
+      <dt>index</dt>
+      <dd>Index of the column in the CSV file from which the value for the column will be taken. Required if column name in the CSV is different from the table's column name</dd>
+      <dt>allowUpdate</dt>
+      <dd>If set to false, only inserts are generated for the column. Default: true</dd>
+     </dl>
+     */
+    void column( String name,
+                 String type=null,
+                 String defaultValue=null,
+                 Number defaultValueNumeric=null,
+                 Date defaultValueDate=null,
+                 Boolean defaultValueBoolean=null,
+                 DatabaseFunction defaultValueComputed=null,
+                 String header=null,
+                 Integer index=null,
+                 Boolean allowUpdate=null){ // TODO should go only to loadUpdateData
+        column argsToMap(name,
+                type,
+                defaultValue,
+                defaultValueNumeric,
+                defaultValueDate,
+                defaultValueBoolean,
+                defaultValueComputed,
+                header,
+                index,
+                allowUpdate )
+    }
+
+    void column( Map ǃ,
+                 String name,
+                 String type=null,
+                 String defaultValue=null,
+                 Number defaultValueNumeric=null,
+                 Date defaultValueDate=null,
+                 Boolean defaultValueBoolean=null,
+                 DatabaseFunction defaultValueComputed=null,
+                 String header=null,
+                 Integer index=null,
+                 Boolean allowUpdate=null){
+        column argsToMap(ǃ,
+                name,
+                type,
+                defaultValue,
+                defaultValueNumeric,
+                defaultValueDate,
+                defaultValueBoolean,
+                defaultValueComputed,
+                header,
+                index,
+                allowUpdate )
+    }
+}
+
+@CompileStatic
+class LoadUpdateDataDelegate extends LoadDataDelegate{
+    LoadUpdateDataDelegate(ChangeSetDelegate changeSet, ChangeWithColumns change) {
+        super(changeSet, change)
+    }
+}
+
+@CompileStatic
+class AddColumnDelegate extends ColumnDelegateHasConstraint<AddColumnConfig> {
+    AddColumnDelegate(ChangeSetDelegate changeSet, ChangeWithColumns change) {
+        super( changeSet, change, AddColumnConfig)
+    }
+
+    void column(Map ǃ,
+                String name,
+                String type,
+                Boolean computed=null,
+                String value=null,
+                Number valueNumeric=null,
+                Date valueDate=null,
+                Boolean valueBoolean=null,
+                String valueBlobFile=null,
+                String valueClobFile=null,
+                String encoding=null,
+                DatabaseFunction valueComputed=null,
+                SequenceNextValueFunction valueSequenceNext=null,
+                SequenceCurrentValueFunction valueSequenceCurrent=null,
+                String defaultValue=null,
+                Number defaultValueNumeric=null,
+                Date defaultValueDate=null,
+                Boolean defaultValueBoolean=null,
+                DatabaseFunction defaultValueComputed=null,
+                SequenceNextValueFunction defaultValueSequenceNext=null,
+                String defaultValueConstraintName=null,
+                Boolean autoIncrement=null,
+                String generationType=null,
+                Boolean defaultOnNull=null,
+                BigInteger startWith=null,
+                BigInteger incrementBy=null,
+                String remarks=null,
+                String afterColumn=null,
+                String beforeColumn=null,
+                Integer position=null,
+                @DelegatesTo(value = ConstraintDelegate, strategy = DELEGATE_ONLY) Closure constraints) {
+        column argsToMap(ǃ,
+                name,
+                type,
+                computed,
+                value,
+                valueNumeric,
+                valueDate,
+                valueBoolean,
+                valueBlobFile,
+                valueClobFile,
+                encoding,
+                valueComputed,
+                valueSequenceNext,
+                valueSequenceCurrent,
+                defaultValue,
+                defaultValueNumeric,
+                defaultValueDate,
+                defaultValueBoolean,
+                defaultValueComputed,
+                defaultValueSequenceNext,
+                defaultValueConstraintName,
+                autoIncrement,
+                generationType,
+                defaultOnNull,
+                startWith,
+                incrementBy,
+                remarks,
+                afterColumn,
+                beforeColumn,
+                position), constraints
+    }
+
+    void column(Map ǃ,
+                String name,
+                String type,
+                Boolean computed=null,
+                String value=null,
+                Number valueNumeric=null,
+                Date valueDate=null,
+                Boolean valueBoolean=null,
+                String valueBlobFile=null,
+                String valueClobFile=null,
+                String encoding=null,
+                DatabaseFunction valueComputed=null,
+                SequenceNextValueFunction valueSequenceNext=null,
+                SequenceCurrentValueFunction valueSequenceCurrent=null,
+                String defaultValue=null,
+                Number defaultValueNumeric=null,
+                Date defaultValueDate=null,
+                Boolean defaultValueBoolean=null,
+                DatabaseFunction defaultValueComputed=null,
+                SequenceNextValueFunction defaultValueSequenceNext=null,
+                String defaultValueConstraintName=null,
+                Boolean autoIncrement=null,
+                String generationType=null,
+                Boolean defaultOnNull=null,
+                BigInteger startWith=null,
+                BigInteger incrementBy=null,
+                String remarks=null,
+                String afterColumn=null,
+                String beforeColumn=null,
+                Integer position=null) {
+        column argsToMap(ǃ,
+                name,
+                type,
+                computed,
+                value,
+                valueNumeric,
+                valueDate,
+                valueBoolean,
+                valueBlobFile,
+                valueClobFile,
+                encoding,
+                valueComputed,
+                valueSequenceNext,
+                valueSequenceCurrent,
+                defaultValue,
+                defaultValueNumeric,
+                defaultValueDate,
+                defaultValueBoolean,
+                defaultValueComputed,
+                defaultValueSequenceNext,
+                defaultValueConstraintName,
+                autoIncrement,
+                generationType,
+                defaultOnNull,
+                startWith,
+                incrementBy,
+                remarks,
+                afterColumn,
+                beforeColumn,
+                position)
+    }
+
+    void column(String name,
+                String type,
+                Boolean computed=null,
+                String value=null,
+                Number valueNumeric=null,
+                Date valueDate=null,
+                Boolean valueBoolean=null,
+                String valueBlobFile=null,
+                String valueClobFile=null,
+                String encoding=null,
+                DatabaseFunction valueComputed=null,
+                SequenceNextValueFunction valueSequenceNext=null,
+                SequenceCurrentValueFunction valueSequenceCurrent=null,
+                String defaultValue=null,
+                Number defaultValueNumeric=null,
+                Date defaultValueDate=null,
+                Boolean defaultValueBoolean=null,
+                DatabaseFunction defaultValueComputed=null,
+                SequenceNextValueFunction defaultValueSequenceNext=null,
+                String defaultValueConstraintName=null,
+                Boolean autoIncrement=null,
+                String generationType=null,
+                Boolean defaultOnNull=null,
+                BigInteger startWith=null,
+                BigInteger incrementBy=null,
+                String remarks=null,
+                String afterColumn=null,
+                String beforeColumn=null,
+                Integer position=null,
+                @DelegatesTo(value = ConstraintDelegate, strategy = DELEGATE_ONLY) Closure constraints){
+        column argsToMap(name,
+                type,
+                computed,
+                value,
+                valueNumeric,
+                valueDate,
+                valueBoolean,
+                valueBlobFile,
+                valueClobFile,
+                encoding,
+                valueComputed,
+                valueSequenceNext,
+                valueSequenceCurrent,
+                defaultValue,
+                defaultValueNumeric,
+                defaultValueDate,
+                defaultValueBoolean,
+                defaultValueComputed,
+                defaultValueSequenceNext,
+                defaultValueConstraintName,
+                autoIncrement,
+                generationType,
+                defaultOnNull,
+                startWith,
+                incrementBy,
+                remarks,
+                afterColumn,
+                beforeColumn,
+                position), constraints
+    }
+
+    void column(String name,
+                String type,
+                Boolean computed=null,
+                String value=null,
+                Number valueNumeric=null,
+                Date valueDate=null,
+                Boolean valueBoolean=null,
+                String valueBlobFile=null,
+                String valueClobFile=null,
+                String encoding=null,
+                DatabaseFunction valueComputed=null,
+                SequenceNextValueFunction valueSequenceNext=null,
+                SequenceCurrentValueFunction valueSequenceCurrent=null,
+                String defaultValue=null,
+                Number defaultValueNumeric=null,
+                Date defaultValueDate=null,
+                Boolean defaultValueBoolean=null,
+                DatabaseFunction defaultValueComputed=null,
+                SequenceNextValueFunction defaultValueSequenceNext=null,
+                String defaultValueConstraintName=null,
+                Boolean autoIncrement=null,
+                String generationType=null,
+                Boolean defaultOnNull=null,
+                BigInteger startWith=null,
+                BigInteger incrementBy=null,
+                String remarks=null,
+                String afterColumn=null,
+                String beforeColumn=null,
+                Integer position=null
+                ){
+        column argsToMap(name,
+                type,
+                computed,
+                value,
+                valueNumeric,
+                valueDate,
+                valueBoolean,
+                valueBlobFile,
+                valueClobFile,
+                encoding,
+                valueComputed,
+                valueSequenceNext,
+                valueSequenceCurrent,
+                defaultValue,
+                defaultValueNumeric,
+                defaultValueDate,
+                defaultValueBoolean,
+                defaultValueComputed,
+                defaultValueSequenceNext,
+                defaultValueConstraintName,
+                autoIncrement,
+                generationType,
+                defaultOnNull,
+                startWith,
+                incrementBy,
+                remarks,
+                afterColumn,
+                beforeColumn,
+                position)
+    }
+}
+
+@CompileStatic
+class InsertDelegate extends ColumnDelegate<ColumnConfig> { // DataColumn in XSD
+    InsertDelegate(ChangeSetDelegate changeSet, ChangeWithColumns change) {
+        super(changeSet, change)
+    }
+
+    void column( Map ǃ,
+                 String name,
+                 String value=null,
+                 Number valueNumeric=null,
+                 Date valueDate=null,
+                 Boolean valueBoolean=null,
+                 String valueBlobFile=null,
+                 String valueClobFile=null,
+                 String encoding=null,
+                 DatabaseFunction valueComputed=null,
+                 SequenceNextValueFunction valueSequenceNext=null,
+                 SequenceCurrentValueFunction valueSequenceCurrent=null) {
+        column argsToMap( ǃ,
+                name,
+                value,
+                valueNumeric,
+                valueDate,
+                valueBoolean,
+                valueBlobFile,
+                valueClobFile,
+                encoding,
+                valueComputed,
+                valueSequenceNext,
+                valueSequenceCurrent)
+    }
+
+    void column( String name,
+                 String value=null,
+                 Number valueNumeric=null,
+                 Date valueDate=null,
+                 Boolean valueBoolean=null,
+                 String valueBlobFile=null,
+                 String valueClobFile=null,
+                 String encoding=null,
+                 DatabaseFunction valueComputed=null,
+                 SequenceNextValueFunction valueSequenceNext=null,
+                 SequenceCurrentValueFunction valueSequenceCurrent=null) {
+        column argsToMap(name,
+                value,
+                valueNumeric,
+                valueDate,
+                valueBoolean,
+                valueBlobFile,
+                valueClobFile,
+                encoding,
+                valueComputed,
+                valueSequenceNext,
+                valueSequenceCurrent)
+    }
+}
+
+
+//@CompileStatic // @SelfType cannot handle generics
+@SelfType(ChangeDelegate)
+trait WhereDelegate {
+/**
      * Process the where clause for the closure and add it to the change.  If the change doesn't
      * support where clauses, we'll get a ChangeLogParseException.
      * @param whereClause the where clause to use.
      */
     def where(String whereClause) {
-        whereClause = DelegateUtil.expandExpressions(whereClause, databaseChangeLog)
+        whereClause = expandExpressions(whereClause)
         // If we have a where clause, try to set it in the change.
-        try {
-            // The columnDelegate DOES take care of expansion.
-            PatchedObjectUtil.setProperty(change, 'where', whereClause)
-        } catch (RuntimeException e) {
-            throw new ChangeLogParseException("ChangeSet '${changeSetId}': a where clause is invalid for '${changeName}' changes.", e)
-        }
+        setProp(change, 'where', whereClause)
     }
 
-    /**
+/**
      * Process the whereParams clause for the closure and add the parameters to the change.  If the
      * change doesn't support whereParams, we'll get a ChangeLogParseException.
-     * @param closure the nested closure with the parameters themselves.
+     * @param params the nested closure with the parameters themselves.
      */
-    def whereParams(closure) {
+    def whereParams(@DelegatesTo (value = WhereParamsDelegate, strategy = DELEGATE_ONLY) Closure params) {
         def whereParamsDelegate = new WhereParamsDelegate(databaseChangeLog: databaseChangeLog,
-                changeSetId: changeSetId,
-                changeName: changeName,
+                changeSetId: changeId,
+                changeName: (change as LiquibaseSerializable).serializedObjectName,
                 change: change)
-        closure.delegate = whereParamsDelegate
-        closure.resolveStrategy = Closure.DELEGATE_FIRST
-        closure.call()
+        callOn(whereParamsDelegate, params)
     }
 
-    /**
+/**
      * Groovy calls methodMissing when it can't find a matching method to call.  We use it to tell
      * the user which changeSet had the invalid element.
      * @param name the name of the method Groovy wanted to call.
      * @param args the original arguments to that method.
-     */
-    def methodMissing(String name, args) {
-        throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${changeName}' is not a valid child element of ${changeName} changes")
-    }
-}
 
+    @PackageScope def methodMissing(String name, args) {
+        error UnrecognizedElement(name)
+    }  */
+}

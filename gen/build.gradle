@@ -1,0 +1,38 @@
+plugins {
+    id 'groovy'
+    id 'application'
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+//groovyVersion = '4.0.5'
+String grOrgId = groovyVersion.startsWith("3") ? 'org.codehaus' : 'org.apache'
+
+dependencies {
+    implementation "${grOrgId}.groovy:groovy:${groovyVersion}"
+    implementation "${grOrgId}.groovy:groovy-templates:${groovyVersion}"
+    implementation "${grOrgId}.groovy:groovy-xml:${groovyVersion}"
+    // This seems redundant, but it isn't.  We need compileOnly so that the main classes will
+    // compile, but that dependency doesn't transfer to the unit tests, so we also need
+    // testCompile.
+    implementation "org.liquibase:liquibase-core:${liquibaseVersion}"
+    testImplementation "org.liquibase:liquibase-core:${liquibaseVersion}"
+    testImplementation "org.spockframework:spock-core:2.3-groovy-${groovyVersion[0]}.0"
+    implementation rootProject
+}
+
+application {
+    mainClass = 'ChangeGenerator'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// Configure the Groovy compiler
+tasks.withType(GroovyCompile).configureEach {
+    // Additional compiler arguments
+    groovyOptions.parameters = true // Include parameter names in bytecode (JDK 8+)
+}

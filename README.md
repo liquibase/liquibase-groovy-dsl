@@ -25,6 +25,120 @@ liquibaseRuntime "org.apache.groovy:groovy-sql:4.0.5"
 ```
 
 ## News
+### Oct 1, 2025
+Release 4.1 adds **auto-complete and documentation** right @ script edit in IDEs with groovy
+support like IntelliJ IDEA and Eclipse. 
+Auto complete works if the `BaseScript` type is defined in the first lines like this:
+```groovy
+@groovy.transform.BaseScript(GroovyScript)
+import liquibase.GroovyScript
+```
+The file also needs to be is in the `src/main/...`, `src/test/...` or similar folder where the IDE
+may treat it as part of the project's module, the liquibase-groovy-dsl jar is configured for.
+
+![edit helpers](doc/code-helpers.gif )
+
+**If the IDE does not show error during script editing, then no syntax error will occur later 
+when the script excuted**, which greatly improves productivity. (Opposed to previous versions, where 
+scripts were checked runtime only)
+
+![](doc/code-edit-anim.gif )
+
+- known properties can be set with positional parameters. e.g. 
+```groovy
+   changeSet 'id1', 'authorname' {
+   }
+```
+**NOTE:** Although the IDE can show the parameter names automatically, using more than the first 
+few positional parameters is not suggested.
+Positional parameters can be mixed with named ones like:
+```groovy
+  changeSet 'id2', author:'authorname' {
+  } 
+```
+**NOTE:** 
+1. By the nature of the groovy method call logic, the parameters defined with its name,  
+  are passed as a map to the method as first parameter. To help editor validation, there are always
+  at least 2 method declarations for each element: [Groovy docs](https://groovy-lang.org/objectorientation.html#_mixing_named_and_positional_parameters)
+   - One with the parameters and their type
+   - Another with the same list, but a `Map ǃ` parameter in front, which you should ignore
+   - If there are mandatory attributes, then for backward compatibility the single `Map` parameter 
+     version of the methods are also kept that is used when all parameters defined with their name 
+     like before
+```groovy
+tableExists( String tableName, String schemaName=null, String catalogName=null )
+tableExists( Map ǃ, String tableName, String schemaName=null, String catalogName=null )
+tableExists( Map params )
+```
+2. Optional attributes have a default value of `null`. There is no optional parameter in java, so 
+  groovy has to generate a separate method declaration for each optional parameter. That resulting ~
+  2 x <number of optional parameters> + 1 declarations, that can cover all possible cases _helping
+  the validation right while you are typing_.
+
+3. When mixing positional and named parameter definitions, extra care needs to be taken <br>
+  _not to try to define parameters positionally **after** the position of the first parameter's 
+  position defined with its name_!<br>
+  The parameter meant to be defined after this position will be used as value of the parameter 
+  defined by its name. It results _that parameter is defined twice_ and an `ArgumentSetTwice` error 
+  will occur during execution. (otherwise there is no way to know which shall be used). It might
+  sound complicated, but an example can help to simplify it. Let's see one using the change with
+  definition:<br>`
+  delete( String tableName, String schemaName=null, String catalogName=null)`<br>
+  With the use: `delete( 'table', schemaName:'schema', 'catalog')`<br>
+  The value "schema" and "catalog" are both treated as the value for parameter `schemaName`. 
+   1. It's value "schema" set with its name gets passed in the first special `Map ǃ` parameter 
+   2. and its position will be filled with the value "catalog".
+
+   All other positional parameters are also "shifted left", so even if the double value definition 
+   wouldn't trigger an error, all parameters would get the value of the next parameter on its right.
+   
+   (To be exact for this situation to happen all parameters has to have the same type. the situation
+   is even more complicated if there are different type parameters)
+
+4. The old named parameter definition is still supported and also aided with the valid attribute names 
+
+- Liquibase `Enum` values can also be used not only as strings, as every script has imported statically:
+```groovy
+  import static liquibase.database.ObjectQuotingStrategy.*
+  import static liquibase.changelog.ChangeSet.ValidationFailOption.*
+  import static liquibase.database.ColumnParentTypeEnum.*
+  import static liquibase.precondition.core.PreconditionContainer.OnSqlOutputOption.*
+  import static liquibase.precondition.core.PreconditionContainer.FailOption.*
+```
+  also 
+  `import liquibase.precondition.core.PreconditionContainer.ErrorOption as OnError` imported
+  so this works fine:
+```groovy
+databaseChangeLog(objectQuotingStrategy: LEGACY) {
+  preConditions HALT, OnError.CONTINUE, onSqlOutput: FAIL, { ...
+```
+**Note:** _The IDE validation and code completion require putting these at the top of the script
+if you use any of the enum values._
+
+- Error messages greatly improved: the script name + line and possible elements or parameters added<br>
+  e.g. in case a mistyped "createTable/**column**" in file `changelogs/includerelative/pathinclude1.changelog.groovy`
+  included from `changelogs/common.test.groovy`:<br>
+>  `changeSet includerelative/pathinclude1::1::nvoxland: Unrecognized child element: 'colum' for 'createTable'! Valid elements are [column] @changelogs/includerelative/pathinclude1.changelog.groovy:7 @changelogs/common.test.groovy:616`
+
+instead of:
+> `ChangeSet '1': 'createTable' is not a valid child element of createTable changes`
+
+- **Converter from XML**: To convert changelog.xml _and all XMLs it includes transitively_ run
+> `java -jar liquibase-groovy-dsl-4.1.0.jar -cp liquibase-core-4.28.0.jar;<liquibase dependencies> <change log xml>`
+ _Known limitations: `rollback` and `createProcedure` elements are not converted correctly_
+
+**Breaking changes:**
+- The change [createProcedure](https://docs.liquibase.com/reference-guide/change-types/createprocedure)
+  has 2 disjunct set of properties: 
+  1. `path` + related properties if the procedure text shall be read from a separate file. 
+  2. If those are not defined, the SQL is expected to be in the child `procedureText` closure. 
+     Now calling `createProcedure 'string'` will treat 'string' as the `path` instead of the SQL 
+     body as earlier
+- Multiple nested `comment`s are not concatenated (latest wins) in `sql` element like in other file 
+  formats
+- `ArgumentSetTwice` exception is thrown, when both `context` and `contextFilter` is set for 
+  `include` and `includeAll`
+
 ### March 1, 2025
 Release 4.0.1 adds support for Liquibase 4.31, including new attributes added to Liquibase since
 version 4.26.
@@ -76,7 +190,7 @@ changes with this release.
 Version 3.0.0 of the DSL no longer supports the 3.x releases of Liquibase.  If you need to use an
 older version of Liquibase, you'll need an older version of the DSL.
 
-Liquibase 4.0.0 no longer supports using absolute filenemes, so the DSL doesn't either.  This change
+Liquibase 4.0.0 no longer supports using absolute filenames, so the DSL doesn't either.  This change
 only affects changelogs that were using the `include` and `includeAll` elements with absolute paths.
  
 ### June 6, 2020
@@ -124,9 +238,9 @@ to think that the changes are new, and it will try to run them again.
 
 - The Groovy DSL doesn't support the `modifyChangeSets` change.
 
-- Liquibase has a `whereParam` element for changes like the `update` change. It isn't documented in
-  the Liquibase documentation, and I don't see any benefits of using it over the simpler `where` 
-  element, so it has been left out of the Groovy DSL.
+- Liquibase has an optional `comment` element for `validCheckSum` elements, which has no use in 
+  groovy file format where the user can use groovy's standard comments, so it has been left out of 
+  the Groovy DSL.
 
 - The documentation mentions a deprecated `referencesUniqueColumn` attribute of the
   `addForeignKeyConstraint` change, but what it doesn't tell you is that it is ignored.  Since
@@ -161,7 +275,8 @@ to think that the changes are new, and it will try to run them again.
     id.
   
 - In general, boolean attributes can be specified as either strings or booleans. For example,
-  `changeSet(runAlways: 'true')` can also be written as `changeSet(runAlways: true)`.
+  `changeSet(runAlways: 'true')` can also be written as `changeSet(runAlways: true)`. The same is 
+  true for numeric and enum parameters. 
 
 - The Groovy DSL supports a simplified means of passing arguments to the `executeCommand change`.
   Instead of:
@@ -171,7 +286,7 @@ execute {
   arg(value: 'somevalue')
 }
 ```
-You can use this the simpler form:
+You can use this simpler form:
 ```groovy
 execute {
   arg 'somevalue'
@@ -204,16 +319,14 @@ sql {
   `validateChecksum` element tells Liquibase to consider the checksums in the `validChecksum`
   element to be valid, even if it doesn't match what is in the database.
 
-- The Liquibase documentation tells you how to set a property for a databaseChangeLog by using the
-  `property` element.  What it doesn't tell you is that you can also set properties by loading a
-  property file.  To do this, you can have `property(file: 'my_file.properties')` in the closure for
-  the databaseChangeLog.
-
 - Liquibase has an `includeAll` element in the databaseChangeLog that includes all the files in the
   given directory.  The Groovy DSL implementation makes sure they are included in alphabetical
   order by path, like Liquibase itself does.  This is really handy for keeping changes in a
   different file for each release.  As long as the file names are named with the release numbers in
   mind, Liquibase will apply changes in the correct order.
+
+- `column` attributes are limited to their meaningful set e.g. `index` / `column` does not offer 
+  `defaultValueNumeric` as it is ignored during execution.
 
 - Remember, the Groovy DSL is basically just Groovy closures, so you can use groovy code to do
   things you could never do in XML, such as this:
@@ -233,6 +346,10 @@ sql { """
 
 - Liquibase added the `context` attribute to the `include`, `includeAll`, and `changeLog` elements.
   They work the same as the context attribute of a change set.
+
+- The Liquibase XML accepts a `logicalFilePath` attribute for the `changeSet` element.  The actual
+  property in the ChangeSet class is named `filePath`.  The Groovy DSL accepts both.  The default is
+  to inherit the file path from the DatabaseChangeLog that contains the ChangeSet. 
 
 ## License
 This code is released under the Apache Public License 2.0, just like Liquibase itself.

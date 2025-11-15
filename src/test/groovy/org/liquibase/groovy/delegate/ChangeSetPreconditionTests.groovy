@@ -14,34 +14,62 @@
 
 package org.liquibase.groovy.delegate
 
-import org.liquibase.groovy.delegate.ChangeSetTests
-import org.junit.Test
-import static org.junit.Assert.*
+import liquibase.changelog.ChangeSet
+import liquibase.precondition.core.DBMSPrecondition
+import spock.lang.Specification
 
+import liquibase.precondition.core.PreconditionContainer.ErrorOption
+import liquibase.precondition.core.PreconditionContainer.FailOption
+
+import static ChangeSetTests.buildChanges
+import static org.liquibase.groovy.helper.constants.*
+import static liquibase.precondition.core.PreconditionContainer.OnSqlOutputOption.*
+import static org.liquibase.groovy.helper.util.assertPropsSet
 
 /**
- * <p></p>
  *
  * @author Tim Berglund
  */
-class ChangeSetPreconditionTests extends ChangeSetTests {
+class ChangeSetPreconditionTests extends Specification {
 
-    @Test
     void testPreconditionWithoutParams() {
-        buildChangeSet {
+        ChangeSet changeSet = buildChanges {
             preConditions {
-                dbms(type: 'mysql')
+                dbms(mysql)
             }
-            addColumn(tableName: 'animal') {
+            addColumn( 'animal') {
                 column(name: 'monkey_status', type: 'varchar(98)')
             }
         }
-
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
+        expect:
+        1 == changeSet.changes.size()
         def preconditions = changeSet.preconditions?.nestedPreconditions
-        assertNotNull preconditions
+        1 == preconditions?.size()
+        assertPropsSet ([onFail: FailOption.HALT,
+                        onError: ErrorOption.HALT,
+                        onFailMessage: null,
+                        onErrorMessage: null,
+                        onSqlOutput: IGNORE], changeSet.preconditions)
+        mysql == (preconditions[0] as DBMSPrecondition).type
+    }
+
+    static final expPropsPreConditions = [
+            onFail: FailOption.WARN,
+            onError: ErrorOption.MARK_RAN,
+            onFailMessage: fail,
+            onErrorMessage: err,
+            onSqlOutput: TEST
+    ]
+
+    void "preConditions #type arguments"() {
+        ChangeSet changeSet = buildChanges expPropsPreConditions, cl
+        assertPropsSet expPropsPreConditions, changeSet.preconditions
+        where:
+        type         | cl
+        'mixed type' | { preConditions 'WARN', 'MARK_RAN', onSqlOutput: 'TEST', it.onFailMessage, it.onErrorMessage, {}}
+        'named'      | { preConditions(onFail: 'WARN', onError: 'MARK_RAN', onSqlOutput: 'TEST', onFailMessage: fail, onErrorMessage: err) {}}
+        'mixed'      | { preConditions it.onFail, it.onError, onSqlOutput: TEST, it.onFailMessage, it.onErrorMessage, {}}
+        'positional' | { preConditions it.onFail, it.onError, it.onFailMessage, it.onErrorMessage, it.onSqlOutput, {} }
     }
 }
 

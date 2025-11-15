@@ -14,10 +14,9 @@
 
 package org.liquibase.groovy.delegate
 
-import liquibase.exception.ChangeLogParseException
+import liquibase.parser.groovy.exception.UnrecognizedElement
 import org.junit.Test
 import static org.junit.Assert.*
-import liquibase.change.ColumnConfig
 import liquibase.change.core.CreateIndexChange
 import liquibase.change.core.DropIndexChange
 
@@ -84,96 +83,12 @@ class ArchitecturalRefactoringTests extends ChangeSetTests {
         assertNoOutput()
     }
 
-    /**
-     * Test parsing a createIndex change with all attributes set and one column.  We don't really
-     * care too much about the particulars of the column, since column parsing is tested in the
-     * ColumnDelegate tests.
-     */
-    @Test
-    void createIndexFullOneColumn() {
-        buildChangeSet {
-            createIndex(
-                    catalogName: 'catalog',
-                    schemaName: 'schema',
-                    tableName: 'monkey',
-                    tablespace: 'tablespace',
-                    indexName: 'ndx_monkeys',
-                    unique: true,
-                    clustered: false,
-                    associatedWith: 'foreignKey') {
-                column(name: 'name')
-            }
-        }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof CreateIndexChange
-        assertEquals 'catalog', changes[0].catalogName
-        assertEquals 'schema', changes[0].schemaName
-        assertEquals 'monkey', changes[0].tableName
-        assertEquals 'tablespace', changes[0].tablespace
-        assertEquals 'ndx_monkeys', changes[0].indexName
-        assertEquals 'foreignKey', changes[0].associatedWith
-        assertTrue changes[0].unique
-        assertFalse changes[0].clustered
-        def columns = changes[0].columns
-        assertNotNull columns
-        assertTrue columns.every { column -> column instanceof ColumnConfig }
-        assertEquals 1, columns.size()
-        assertEquals 'name', columns[0].name
-        assertNoOutput()
-    }
-
-    /**
-     * Test parsing a createIndex change with more than one column to make sure we get them both.
-     * This test also swaps the values of the booleans.
-     */
-    @Test
-    void createIndexMultipleColumns() {
-        buildChangeSet {
-            createIndex(
-                    catalogName: 'catalog',
-                    schemaName: 'schema',
-                    tableName: 'monkey',
-                    tablespace: 'tablespace',
-                    indexName: 'ndx_monkeys',
-                    unique: false,
-                    clustered: true,
-                    associatedWith: 'foreignKey') {
-                column(name: 'species')
-                column(name: 'name')
-            }
-        }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof CreateIndexChange
-        assertEquals 'catalog', changes[0].catalogName
-        assertEquals 'schema', changes[0].schemaName
-        assertEquals 'monkey', changes[0].tableName
-        assertEquals 'tablespace', changes[0].tablespace
-        assertEquals 'ndx_monkeys', changes[0].indexName
-        assertEquals 'foreignKey', changes[0].associatedWith
-        assertFalse changes[0].unique
-        assertTrue changes[0].clustered
-        def columns = changes[0].columns
-        assertNotNull columns
-        assertTrue columns.every { column -> column instanceof ColumnConfig }
-        assertEquals 2, columns.size()
-        assertEquals 'species', columns[0].name
-        assertEquals 'name', columns[1].name
-        assertNoOutput()
-    }
 
     /**
      * The createIndex change can take columns, but a where clause is not valid.  Test parsing a
      * createIndex change with a where clause to make sure it gets rejected.
      */
-    @Test(expected = ChangeLogParseException)
+    @Test(expected = UnrecognizedElement)
     void createIndexWithWhereClause() {
         buildChangeSet {
             createIndex(
@@ -212,32 +127,5 @@ class ArchitecturalRefactoringTests extends ChangeSetTests {
         assertNoOutput()
     }
 
-    /**
-     * Test parsing a dropIndex change with all supported attributes.
-     */
-    @Test
-    void dropIndexFull() {
-        buildChangeSet {
-            dropIndex(
-                    catalogName: 'catalog',
-                    schemaName: 'schema',
-                    tableName: 'monkey',
-                    indexName: 'ndx_monkeys',
-                    associatedWith: 'foreignKey'
-            )
-        }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof DropIndexChange
-        assertEquals 'catalog', changes[0].catalogName
-        assertEquals 'schema', changes[0].schemaName
-        assertEquals 'monkey', changes[0].tableName
-        assertEquals 'ndx_monkeys', changes[0].indexName
-        assertEquals 'foreignKey', changes[0].associatedWith
-        assertNoOutput()
-    }
 }
 

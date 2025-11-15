@@ -22,8 +22,9 @@ import liquibase.change.core.RawSQLChange
 import liquibase.change.core.UpdateDataChange
 import liquibase.exception.ChangeLogParseException
 import liquibase.exception.RollbackImpossibleException
+import liquibase.parser.groovy.exception.InvalidAttribute
+import liquibase.parser.groovy.exception.UnrecognizedElement
 import org.junit.Test
-import org.junit.Ignore
 import static org.junit.Assert.*
 
 /**
@@ -61,9 +62,10 @@ class ChangeSetMethodTests extends ChangeSetTests {
     void validChecksumTest() {
         def checksum = 'd0763edaa9d9bd2a9516280e9044d885'
         def liquibaseChecksum = CheckSum.parse(checksum)
+        changeSet = createChangeSet()
         def goodChecksum = changeSet.generateCheckSum().toString()
         assertFalse "Arbitrary checksum should not be valid before being added", changeSet.isCheckSumValid(liquibaseChecksum)
-        buildChangeSet {
+        new ChangeSetDelegate(changeSet).callOn {
             validCheckSum goodChecksum
         }
         assertTrue "Arbitrary checksum should be valid after being added", changeSet.isCheckSumValid(liquibaseChecksum)
@@ -232,7 +234,7 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
     /**
      * Process a rollback with a closure that has an invalid method in it.
      */
-    @Test(expected = ChangeLogParseException)
+    @Test(expected = UnrecognizedElement)
     void rollbackInvalidClosure() {
         buildChangeSet {
             rollback {
@@ -259,7 +261,7 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
     @Test(expected = RollbackImpossibleException)
     void rollbackInvalidChange() {
         buildChangeSet {
-            rollback(changeSetId: 'big-bang', changeSetAuthor: CHANGESET_AUTHOR)
+            rollback(changeSetId: 'big-bang', changeSetAuthor: this.CHANGESET_AUTHOR)
         }
     }
 
@@ -270,11 +272,11 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
      */
     @Test
     void rollbackWithoutPath() {
-        buildChangeSet {
+        buildChangeSet this, {
             addColumn(tableName: 'monkey') {
                 column(name: 'diet', type: 'varchar(30)')
             }
-            rollback(changeSetId: CHANGESET_ID, changeSetAuthor: CHANGESET_AUTHOR)
+            rollback(changeSetId: it.CHANGESET_ID, changeSetAuthor: it.CHANGESET_AUTHOR)
         }
 
         // in this case, we expect the addColumn change to also be the change inside the rollback.
@@ -291,13 +293,14 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
      * Test a map based rollback that includes a path.  We can't really test this easily because we
      * need a valid change with that path, but we can at least make sure the attribute is supported.
      */
+
     @Test
     void rollbackWitPath() {
-        buildChangeSet {
+        buildChangeSet this, {
             addColumn(tableName: 'monkey') {
                 column(name: 'diet', type: 'varchar(30)')
             }
-            rollback(changeSetId: CHANGESET_ID, changeSetAuthor: CHANGESET_AUTHOR, changeSetPath: CHANGESET_FILEPATH)
+            rollback(changeSetId: it.CHANGESET_ID, changeSetAuthor: it.CHANGESET_AUTHOR, changeSetPath: it.CHANGESET_FILEPATH)
         }
 
         // in this case, we expect the addColumn change to also be the change inside the rollback.
@@ -316,11 +319,11 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
      */
     @Test(expected = ChangeLogParseException)
     void rollbackWithDeprecatedId() {
-        buildChangeSet {
+        buildChangeSet this, {
             addColumn(tableName: 'monkey') {
                 column(name: 'diet', type: 'varchar(30)')
             }
-            rollback(id: CHANGESET_ID, changeSetAuthor: CHANGESET_AUTHOR)
+            rollback(id: it.CHANGESET_ID, changeSetAuthor: it.CHANGESET_AUTHOR)
         }
 
     }
@@ -345,12 +348,12 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
      */
     @Test(expected = ChangeLogParseException)
     void rollbackWithInvalidAttribute() {
-        buildChangeSet {
+        buildChangeSet this, {
             addColumn(tableName: 'monkey') {
                 column(name: 'diet', type: 'varchar(30)')
             }
             // rollbackId is invalid attribute
-            rollback(changeSetId: CHANGESET_ID, rollbackId: CHANGESET_ID, changeSetAuthor: CHANGESET_AUTHOR)
+            rollback(changeSetId: it.CHANGESET_ID, rollbackId: it.CHANGESET_ID, changeSetAuthor: it.CHANGESET_AUTHOR)
         }
 
     }
@@ -361,7 +364,7 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
      * dropTable change, but we've incorrectly set the cascadeToConstraints attribute instead of
      * cascadeConstraints.  This should result in an exception being thrown.
      */
-    @Test(expected = ChangeLogParseException)
+    @Test(expected = InvalidAttribute)
     void processChangeWithInvalidAttribute() {
         buildChangeSet {
             dropTable(catalogName: 'catalog',
@@ -372,7 +375,7 @@ ALTER TABLE monkey_table DROP COLUMN angry;"""
     }
 
     // invalid method, such as createLink
-    @Test(expected = ChangeLogParseException)
+    @Test(expected = UnrecognizedElement)
     void processInvalidChange() {
         buildChangeSet {
             createLink(name: 'myLink')

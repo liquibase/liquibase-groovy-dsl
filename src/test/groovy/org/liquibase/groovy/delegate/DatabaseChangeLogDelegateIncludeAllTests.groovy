@@ -13,15 +13,14 @@
  */
 package org.liquibase.groovy.delegate
 
+import groovy.transform.CompileStatic
 import liquibase.changelog.ChangeLogParameters
+import liquibase.changelog.ChangeSet
 import liquibase.changelog.DatabaseChangeLog
 import liquibase.exception.ChangeLogParseException
 import liquibase.exception.LiquibaseException
-import liquibase.parser.ChangeLogParserFactory
-import liquibase.parser.ext.GroovyLiquibaseChangeLogParser
 import liquibase.precondition.Precondition
 import liquibase.precondition.core.DBMSPrecondition
-import liquibase.precondition.core.PreconditionContainer
 import liquibase.precondition.core.RunningAsPrecondition
 import liquibase.resource.ClassLoaderResourceAccessor
 import liquibase.resource.DirectoryResourceAccessor
@@ -32,6 +31,7 @@ import static org.junit.Assert.assertEquals
 import static org.junit.Assert.assertNotNull
 import static org.junit.Assert.assertNull
 import static org.junit.Assert.assertTrue
+import static org.liquibase.groovy.helper.util.*
 
 /**
  * One of several test classes for the {@link DatabaseChangeLogDelegate}.  The number of tests for
@@ -45,16 +45,15 @@ import static org.junit.Assert.assertTrue
  *
  * @author Steven C. Saliman
  */
-class DatabaseChangeLogDelegateIncludeAllTests {
+@CompileStatic
+class DatabaseChangeLogDelegateIncludeAllTests extends DatabaseChangeLogTests {
     // Let's define some paths and directories.  These should all be relative.
-    static final ROOT_CHANGELOG_PATH = "src/test/changelog"
-    static final TMP_CHANGELOG_PATH = ROOT_CHANGELOG_PATH + "/tmp"
-    static final INCLUDED_CHANGELOG_PATH = TMP_CHANGELOG_PATH + "/include"
+    static final String INCLUDED_CHANGELOG_PATH = TMP_CHANGELOG_PATH + "/include"
     // The "3-" is important to put it between 2 filenames in the parent.
-    static final INCLUDED_CHANGELOG_SUB_PATH = TMP_CHANGELOG_PATH + "/include/3-subdirectory"
-    static final TMP_CHANGELOG_DIR = new File(TMP_CHANGELOG_PATH)
-    static final INCLUDED_CHANGELOG_DIR = new File(INCLUDED_CHANGELOG_PATH)
-    static final INCLUDED_CHANGELOG_SUB_DIR = new File(INCLUDED_CHANGELOG_SUB_PATH)
+    static final String INCLUDED_CHANGELOG_SUB_PATH = TMP_CHANGELOG_PATH + "/include/3-subdirectory"
+    static final File TMP_CHANGELOG_DIR = new File(TMP_CHANGELOG_PATH)
+    static final File INCLUDED_CHANGELOG_DIR = new File(INCLUDED_CHANGELOG_PATH)
+    static final File INCLUDED_CHANGELOG_SUB_DIR = new File(INCLUDED_CHANGELOG_SUB_PATH)
     static final ROOT_CHANGE_SET = 'root-change-set'
     // constants for 4 included changesets.  one of them is a sql file, to test filters.  One is
     // alphabetically last, but in in a subdirectory whose name is between two files in the parent,
@@ -64,13 +63,6 @@ class DatabaseChangeLogDelegateIncludeAllTests {
     static final SECOND_INCLUDED_CHANGE_SET = 'second-included-change-set'
     static final THIRD_INCLUDED_CHANGE_SET = 'third-included-change-set'  // the one in the subdir
     static final FOURTH_INCLUDED_CHANGE_SET = 'fourth-included-change-set' // the sql file
-    // This one is not a real file, but it looks like a legit file.  It is used by tests that
-    // build changelogs on the fly.
-    static final MOCK_CHANGELOG = "${ROOT_CHANGELOG_PATH}/mock-changelog.groovy"
-
-    def resourceAccessor
-    ChangeLogParserFactory parserFactory
-
 
     @Before
     void registerParser() {
@@ -80,17 +72,13 @@ class DatabaseChangeLogDelegateIncludeAllTests {
         // "/some/path/to/dir/.", just like what Liquibase does.
         def f = new File(".")
         resourceAccessor = new DirectoryResourceAccessor(new File(f.absolutePath))
-        parserFactory = ChangeLogParserFactory.instance
-        ChangeLogParserFactory.getInstance().register(new GroovyLiquibaseChangeLogParser())
         // make sure we start with clean temporary directories before each test
         TMP_CHANGELOG_DIR.deleteDir()
         INCLUDED_CHANGELOG_DIR.mkdirs()
         INCLUDED_CHANGELOG_SUB_DIR.mkdirs()
     }
 
-    /**
-     * Test including a path when we have an unsupported attribute.
-     */
+    /** Test including a path when we have an unsupported attribute.  */
     @Test(expected = ChangeLogParseException)
     void includeAllInvalidAttribute() {
         buildChangeLog {
@@ -118,8 +106,7 @@ databaseChangeLog {
   }
 }
 """)
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+        parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
     }
 
     /**
@@ -148,9 +135,7 @@ databaseChangeLog {
   }
 }
 """)
-
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+        def rootChangeLog = parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
 
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
@@ -187,7 +172,7 @@ databaseChangeLog {
   preConditions {
     dbms(type: 'mysql')
   }
-  includeAll(path: '${INCLUDED_CHANGELOG_PATH}', context: 'override', contextFilter: 'myContext')
+  includeAll(path: '${INCLUDED_CHANGELOG_PATH}', contextFilter: 'myContext')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -195,9 +180,10 @@ databaseChangeLog {
   }
 }
 """)
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+         verify parseDatabaseChangeLog (rootChangeLogFile, resourceAccessor)
+    }
 
+    void verify(DatabaseChangeLog rootChangeLog) {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
@@ -240,28 +226,64 @@ databaseChangeLog {
   }
 }
 """)
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+        verify parseDatabaseChangeLog (rootChangeLogFile, resourceAccessor)
+    }
 
-        assertNotNull rootChangeLog
-        def changeSets = rootChangeLog.changeSets
-        assertNotNull changeSets
-        assertEquals 5, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals THIRD_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[3].id
-        assertEquals ROOT_CHANGE_SET, changeSets[4].id
+    @Test
+    void includeAllRelativeToRelativeChangeLogMixedConvert() {
+        createIncludedChangeLogFiles()
+        def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
+databaseChangeLog {
+  preConditions {
+    dbms(type: 'mysql')
+  }
+  includeAll 'include', 'true', context: 'myContext'
+  changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
+    addColumn(tableName: 'monkey') {
+      column(name: 'emotion', type: 'varchar(50)')
+    }
+  }
+}
+""")
+        verify parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
+    }
 
-        // Take a look at the contexts of the changes.  The first 4, came from the included file,
-        // and should have contexts.  The 4th one came from the root changelog and should not.
-        assertEquals 'myContext', changeSets[0].changeLog.includeContextFilter.toString()
-        assertEquals 'myContext', changeSets[1].changeLog.includeContextFilter.toString()
-        assertEquals 'myContext', changeSets[2].changeLog.includeContextFilter.toString()
-        assertEquals 'myContext', changeSets[3].changeLog.includeContextFilter.toString()
-        assertNull changeSets[4].changeLog.includeContextFilter
+    @Test
+    void includeAllRelativeToRelativeChangeLogPositionalConvert() {
+        createIncludedChangeLogFiles()
+        def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
+databaseChangeLog {
+  preConditions {
+    dbms(type: 'mysql')
+  }
+  includeAll 'include', 'true', 'myContext'
+  changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
+    addColumn(tableName: 'monkey') {
+      column(name: 'emotion', type: 'varchar(50)')
+    }
+  }
+}
+""")
+        verify parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
+    }
 
-        verifyIncludedPreconditions rootChangeLog
+    @Test
+    void includeAllRelativeToRelativeChangeLogPositional() {
+        createIncludedChangeLogFiles()
+        def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
+databaseChangeLog {
+  preConditions {
+    dbms(type: 'mysql')
+  }
+  includeAll 'include', true, 'myContext'
+  changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
+    addColumn(tableName: 'monkey') {
+      column(name: 'emotion', type: 'varchar(50)')
+    }
+  }
+}
+""")
+        verify parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
     }
 
     /**
@@ -336,8 +358,7 @@ databaseChangeLog {
   }
 }
 """)
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+        def rootChangeLog = parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
 
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
@@ -374,8 +395,7 @@ databaseChangeLog {
   }
 }
 """)
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+        parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
     }
 
     /**
@@ -400,8 +420,7 @@ databaseChangeLog {
   }
 }
 """)
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+        parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
     }
 
     /**
@@ -553,11 +572,11 @@ databaseChangeLog {
      */
     @Test
     void includeAllInvalidPathIgnoreError() {
-        def changeLog = buildChangeLog {
+        DatabaseChangeLog changeLog = buildChangeLog {
             includeAll(path: 'invalid', errorIfMissingOrEmpty: false)
         }
         assertNotNull changeLog
-        def changeSets = changeLog.changeSets
+        List<ChangeSet> changeSets = changeLog.changeSets
         assertNotNull changeSets
         assertEquals 0, changeSets.size()
     }
@@ -640,11 +659,11 @@ databaseChangeLog {
         assertEquals 1, changeSets.size()  // from the changelog itself.
         assertEquals ROOT_CHANGE_SET, changeSets[0].id
 
-        def preconditions = extractPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
+        List<Precondition> preconditions = extractPreconditions rootChangeLog.preconditions
         assertNotNull preconditions
         assertEquals 1, preconditions.size()
         assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertEquals 'mysql', preconditions[0].type
+        assertEquals 'mysql', (preconditions[0] as DBMSPrecondition).type
     }
 
     //-------------------------------------------------------------------------------------------
@@ -784,11 +803,11 @@ databaseChangeLog {
 
         assertTrue changeSets[0].filePath.equals('ignore-changelog.groovy')
 
-        def preconditions = extractPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
+        def preconditions = extractPreconditions rootChangeLog.preconditions
         assertNotNull preconditions
         assertEquals 1, preconditions.size()
         assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertEquals 'mysql', preconditions[0].type
+        assertEquals 'mysql', preconditions[0].properties.type
     }
 
     /**
@@ -805,7 +824,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: '${INCLUDED_CHANGELOG_DIR}', minDepth: 2)
+  includeAll(path: '${INCLUDED_CHANGELOG_PATH}', minDepth: 2)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -813,8 +832,7 @@ databaseChangeLog {
   }
 }
 """)
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+        def rootChangeLog = parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
 
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
@@ -842,7 +860,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAll(path: '${INCLUDED_CHANGELOG_DIR}', maxDepth: 1)
+  includeAll(path: "${INCLUDED_CHANGELOG_PATH}", maxDepth: 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -850,9 +868,10 @@ databaseChangeLog {
   }
 }
 """)
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
+        verifyFiles parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
+    }
 
+    static void verifyFiles (DatabaseChangeLog rootChangeLog) {
         assertNotNull rootChangeLog
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
@@ -929,24 +948,7 @@ databaseChangeLog {
   }
 }
 """)
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
-
-        assertNotNull rootChangeLog
-        def changeSets = rootChangeLog.changeSets
-        assertNotNull changeSets
-        assertEquals 4, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals ROOT_CHANGE_SET, changeSets[3].id
-
-        // Check that the paths of the 3 included change sets are relative.  The 4th change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/1-first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/2-second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/4-fourth")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
+        verifyFiles parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
     }
 
     /**
@@ -1008,24 +1010,7 @@ databaseChangeLog {
   }
 }
 """)
-        def parser = parserFactory.getParser(rootChangeLogFile.path, resourceAccessor)
-        def rootChangeLog = parser.parse(rootChangeLogFile.path, new ChangeLogParameters(), resourceAccessor)
-
-        assertNotNull rootChangeLog
-        def changeSets = rootChangeLog.changeSets
-        assertNotNull changeSets
-        assertEquals 4, changeSets.size()
-        assertEquals FIRST_INCLUDED_CHANGE_SET, changeSets[0].id
-        assertEquals SECOND_INCLUDED_CHANGE_SET, changeSets[1].id
-        assertEquals FOURTH_INCLUDED_CHANGE_SET, changeSets[2].id
-        assertEquals ROOT_CHANGE_SET, changeSets[3].id
-
-        // Check that the paths of the 3 included change sets are relative.  The 4th change set did
-        // not come from the "includeAll", but it will be relative.
-        assertTrue changeSets[0].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/1-first")
-        assertTrue changeSets[1].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/2-second")
-        assertTrue changeSets[2].filePath.startsWith("${INCLUDED_CHANGELOG_PATH}/4-fourth")
-        assertTrue changeSets[3].filePath.startsWith(TMP_CHANGELOG_PATH)
+        verifyFiles parseDatabaseChangeLog(rootChangeLogFile, resourceAccessor)
     }
 
     /**
@@ -1094,22 +1079,6 @@ databaseChangeLog {
     }
 
     /**
-     * Helper method that builds a changeSet from the given closure.  Tests will use this to test
-     * parsing the various closures that make up the Groovy DSL.
-     * @param closure the closure containing changes to parse.
-     * @return the changeSet, with parsed changes from the closure added.
-     */
-    private def buildChangeLog(Closure closure) {
-        def changelog = new DatabaseChangeLog(MOCK_CHANGELOG)
-        changelog.changeLogParameters = new ChangeLogParameters()
-        closure.delegate = new DatabaseChangeLogDelegate(changelog)
-        closure.delegate.resourceAccessor = resourceAccessor
-        closure.resolveStrategy = Closure.DELEGATE_FIRST
-        closure.call()
-        return changelog
-    }
-
-    /**
      * Helper method to create changelogs in a directory for testing the includeAll methods.  It
      * creates 4 files:
      * <ul>
@@ -1163,19 +1132,9 @@ databaseChangeLog {
   }
 }
 """)
-
-
         return INCLUDED_CHANGELOG_DIR.path.replaceAll("\\\\", "/")
     }
 
-    private File createFileFrom(directory, suffix, text) {
-        createFileFrom(directory, 'liquibase-', suffix, text)
-    }
-
-    private File createFileFrom(directory, prefix, suffix, text) {
-        def file = File.createTempFile(prefix, suffix, directory)
-        file << text
-    }
 
     /**
      * Check the preconditions on behalf of the various "includeAll" tests. Most of the "includeAll"
@@ -1188,35 +1147,15 @@ databaseChangeLog {
      * We won't worry about the 3rd one, but we'll make sure we get the first two.
      * @param preconditions the preconditions from the root changelog
      */
-    private def verifyIncludedPreconditions(rootChangeLog) {
-        def preconditions = extractPreconditions rootChangeLog.preconditionContainer?.nestedPreconditions
+    private def verifyIncludedPreconditions(DatabaseChangeLog rootChangeLog) {
+        List<Precondition> preconditions = extractPreconditions rootChangeLog.preconditions
         assertNotNull preconditions
         assertEquals 2, preconditions.size()
         assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertEquals 'mysql', preconditions[0].type
+        assertEquals 'mysql', preconditions[0].properties.type
         assertTrue preconditions[1] instanceof RunningAsPrecondition
-        assertEquals 'ssaliman', preconditions[1].username
+        assertEquals 'ssaliman', preconditions[1].properties.username
     }
 
-    /**
-     * Helper method to extract the actual preconditions from a list of potential preconditions.
-     * <p>
-     * Liquibase often nests the actual preconditions in a precondition container.  This method
-     * will walk through a collection of objects, extracting preconditions and recursively checking
-     * nested items in a container to get just the preconditions themselves.
-     * @param preconditions the collection of preconditions to search
-     * @return a list of actual preconditions.
-     */
-    private def extractPreconditions(preconditions) {
-        def actualPreconditions = []
-        preconditions?.each { pc ->
-            if ( pc instanceof PreconditionContainer ) {
-                actualPreconditions.addAll extractPreconditions(pc.nestedPreconditions)
-            } else if ( pc instanceof Precondition) {
-                actualPreconditions.add pc
-            }
-        }
-        return actualPreconditions
-    }
 }
 

@@ -14,7 +14,9 @@
 
 package org.liquibase.groovy.delegate
 
-import liquibase.exception.ChangeLogParseException
+import groovy.transform.CompileStatic
+import liquibase.change.Change
+import liquibase.change.core.ExecuteShellCommandChange
 
 /**
  * This class processes the {@code arg} closure that can be present in an {@code executeCommand}
@@ -23,10 +25,14 @@ import liquibase.exception.ChangeLogParseException
  *
  * @author Steven C. Saliman
  */
-class ArgumentDelegate {
-    def args = []
-    def changeSetId = '<unknown>' // used for error messages
-    def changeName = '<unknown>' // used for error messages
+@CompileStatic
+class ExecuteCommandDelegate extends ChangeDelegate<Tag> {
+    static enum Tag {arg}
+    protected ExecuteShellCommandChange getChange() {super.change as ExecuteShellCommandChange}
+
+    ExecuteCommandDelegate(ChangeSetDelegate changeSet, Change change) {
+        super(changeSet, change)
+    } // used for error messages
 
     /**
      * Process an argument where the argument is simply a string.  This is not how the Liquibase XML
@@ -34,7 +40,7 @@ class ArgumentDelegate {
      * @param value the argument to add
      */
     def arg(String value) {
-        args << value
+        change.addArg(expandExpressions(value))
     }
 
     /**
@@ -46,9 +52,9 @@ class ArgumentDelegate {
         // we want a helpful message if the value map has anything other than a "value" key.
         valueMap.each { key, value ->
             if ( key == "value" ) {
-                args << valueMap.value
+                arg value as String
             } else {
-                throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${key}' is not a valid argument atrribute of ${changeName} changes")
+                error InvalidAttribute(Tag.arg, key as String)
             }
         }
     }
@@ -58,10 +64,10 @@ class ArgumentDelegate {
      * the user which changeSet had the invalid element.
      * @param name the name of the method Groovy wanted to call.
      * @param args the original arguments to that method.
-     */
+
     def methodMissing(String name, args) {
         throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${name}' is not a valid child element of ${changeName} changes")
     }
-
+    */
 }
 

@@ -14,7 +14,9 @@
 
 package org.liquibase.groovy.delegate
 
-import liquibase.exception.ChangeLogParseException
+import groovy.transform.CompileStatic
+import groovy.transform.SelfType
+import liquibase.change.Change
 
 /**
  * This class processes the closure that can be present in a {@code sql} change.  The closure will
@@ -24,21 +26,24 @@ import liquibase.exception.ChangeLogParseException
  * This delegate will not expand expressions to make changeLog property substitutions.  That is up
  * to the caller.
  */
-class CommentDelegate {
-    String comment = null
-    def changeSetId = '<unknown>' // used for error messages
-    def changeName = '<unknown>' // used for error messages
+@CompileStatic
+@SelfType(ChangeDelegate)
+trait CommentDelegate {
+//    String comment = null
+//    def changeSetId = '<unknown>' // used for error messages
+//    def changeName = '<unknown>' // used for error messages
 
     /**
      * Process a comment in the closure
      * @param value the value of the comment.
      */
     void comment(String value) {
-        if ( comment != null ) {
-            comment = "${comment} ${value}"
-        } else {
-            this.comment = value
-        }
+//        if ( comment != null ) {
+//            comment = "${comment} ${value}"
+//        } else {
+//            this.comment = value
+//        }
+        setProp change, 'comment', value
     }
 
     /**
@@ -46,10 +51,23 @@ class CommentDelegate {
      * the user which changeSet had the invalid element.
      * @param name the name of the method Groovy wanted to call.
      * @param args the original arguments to that method.
-     */
-    def methodMissing(String name, args) {
+
+    protected def methodMissing(String name, args) {
         throw new ChangeLogParseException("ChangeSet '${changeSetId}': '${name}' is not a valid child element of ${changeName} changes")
-    }
+    }*/
 
 }
 
+@CompileStatic
+class SqlDelegate extends ChangeDelegate implements CommentDelegate {
+    SqlDelegate(ChangeSetDelegate changeSet, Change change ) {
+        super(changeSet, change)
+    }
+}
+
+@CompileStatic
+class CreateProcedureDelegate extends ChangeDelegate implements CommentDelegate {
+    CreateProcedureDelegate(ChangeSetDelegate changeSet, Change change ) {
+        super(changeSet, change)
+    }
+}

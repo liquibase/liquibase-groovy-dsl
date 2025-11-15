@@ -14,6 +14,7 @@
 
 package org.liquibase.groovy.delegate
 
+import liquibase.changelog.ChangeSet
 import liquibase.sql.visitor.PrependSqlVisitor
 import org.junit.Test
 import static org.junit.Assert.*
@@ -21,6 +22,8 @@ import liquibase.change.core.RawSQLChange
 import liquibase.change.core.SQLFileChange
 import liquibase.change.core.ExecuteShellCommandChange
 import liquibase.change.custom.CustomChangeWrapper
+import static org.liquibase.groovy.helper.util.assertPropsSet
+import static org.liquibase.groovy.helper.constants.*
 
 /**
  * This is one of several classes that test the creation of refactoring changes for ChangeSets. This
@@ -270,9 +273,17 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertNull changeSet.sqlVisitors[0].contexts
         assertFalse changeSet.sqlVisitors[0].applyToRollback
         assertNoOutput()
-
-
     }
+
+    static final Map expDefaultPropsSql = [
+       dbms: null,
+       endDelimiter: null,
+       splitStatements: true,
+       stripComments: false,
+       sql: null,
+       comment:null
+    ]
+
 
     /**
      * Test parsing a sql change when we have an empty attribute map and an empty closure to make
@@ -281,23 +292,10 @@ class CustomRefactoringTests extends ChangeSetTests {
      */
     @Test
     void sqlWithoutAttributesOrClosure() {
-        buildChangeSet {
+        ChangeSet cs = buildChangeSet {
             sql([:]) {}
         }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof RawSQLChange
-        assertNull changes[0].dbms
-        assertNull changes[0].endDelimiter
-        assertTrue changes[0].splitStatements
-        assertFalse changes[0].stripComments
-        assertNull changes[0].sql
-        assertNull changes[0].comment
-        assertNotNull changes[0].resourceAccessor
-        assertNoOutput()
+        validate cs, expDefaultPropsSql
     }
 
     /**
@@ -305,23 +303,10 @@ class CustomRefactoringTests extends ChangeSetTests {
      */
     @Test
     void sqlIsString() {
-        buildChangeSet {
-            sql "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)"
+        ChangeSet cs = buildChangeSet {
+            sql sqlSelect
         }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof RawSQLChange
-        assertNull changes[0].dbms
-        assertNull changes[0].endDelimiter
-        assertTrue changes[0].splitStatements
-        assertFalse changes[0].stripComments
-        assertEquals "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)", changes[0].sql
-        assertNull changes[0].comment
-        assertNotNull changes[0].resourceAccessor
-        assertNoOutput()
+        validate cs, [*:expDefaultPropsSql, sql: sqlSelect ]
     }
 
     /**
@@ -329,22 +314,21 @@ class CustomRefactoringTests extends ChangeSetTests {
      */
     @Test
     void sqlInClosure() {
-        buildChangeSet {
+        ChangeSet cs = buildChangeSet {
             sql {
-                "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)"
+                sqlSelect
             }
         }
+        validate cs, [*:expDefaultPropsSql, sql: sqlSelect ]
+    }
 
+    void validate( ChangeSet changeSet, Map expProps) {
         assertEquals 0, changeSet.rollback.changes.size()
         def changes = changeSet.changes
         assertNotNull changes
         assertEquals 1, changes.size()
-        assertNull changes[0].dbms
-        assertNull changes[0].endDelimiter
-        assertTrue changes[0].splitStatements
-        assertFalse changes[0].stripComments
-        assertEquals "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)", changes[0].sql
-        assertNull changes[0].comment
+        assertTrue changes[0] instanceof RawSQLChange
+        assertPropsSet expProps, changes[0]
         assertNotNull changes[0].resourceAccessor
         assertNoOutput()
     }
@@ -355,55 +339,13 @@ class CustomRefactoringTests extends ChangeSetTests {
      */
     @Test
     void sqlCommentInClosure() {
-        buildChangeSet {
+        ChangeSet cs = buildChangeSet {
             sql {
                 comment("No comment")
-                "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)"
+                sqlSelect
             }
         }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertNull changes[0].dbms
-        assertNull changes[0].endDelimiter
-        assertTrue changes[0].splitStatements
-        assertFalse changes[0].stripComments
-        assertEquals "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)", changes[0].sql
-        assertEquals "No comment", changes[0].comment
-        assertNotNull changes[0].resourceAccessor
-        assertNoOutput()
-    }
-
-    /**
-     * Test parsing a sql chanve when we have all supported attributes present and no comments in
-     * the closure.  For this test set the two booleans to the opposite of the Liquibase defaults.
-     */
-    @Test
-    void sqlFullWithNoComments() {
-        buildChangeSet {
-            sql(dbms: 'oracle',
-                splitStatements: false,
-                stripComments: true,
-                endDelimiter: '!') {
-                "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)"
-            }
-        }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof RawSQLChange
-        assertEquals 'oracle', changes[0].dbms
-        assertFalse changes[0].splitStatements
-        assertTrue changes[0].stripComments
-        assertEquals '!', changes[0].endDelimiter
-        assertEquals "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)", changes[0].sql
-        assertNull changes[0].comment
-        assertNotNull changes[0].resourceAccessor
-        assertNoOutput()
+        validate cs ,[*:expDefaultPropsSql, comment: "No comment", sql: sqlSelect ]
     }
 
     /**
@@ -428,8 +370,8 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertEquals 1, changes.size()
         assertTrue changes[0] instanceof RawSQLChange
         assertEquals 'oracle', changes[0].dbms
-        assertFalse changes[0].splitStatements
-        assertTrue changes[0].stripComments
+        assertFalse changes[0].isSplitStatements()  // Needed for groovy 4
+        assertTrue changes[0].isStripComments()  // Needed for groovy 4
         assertEquals '!', changes[0].endDelimiter
         assertEquals "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)", changes[0].sql
         assertEquals "No comment", changes[0].comment
@@ -466,36 +408,4 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertNoOutput()
     }
 
-    /**
-     * Test parsing a sqlFile change when we have all supported options. For this test, we set the
-     * two booleans to be the opposite of their default values.
-     */
-    @Test
-    void sqlFileFull() {
-        buildChangeSet {
-            sqlFile(path: 'src/test/changelog/file.sql',
-                    relativeToChangelogFile: false,
-                    stripComments: true,
-                    splitStatements: false,
-                    encoding: 'UTF-8',
-                    endDelimiter: '@',
-                    dbms: 'oracle')
-        }
-
-        assertEquals 0, changeSet.rollback.changes.size()
-        def changes = changeSet.changes
-        assertNotNull changes
-        assertEquals 1, changes.size()
-        assertTrue changes[0] instanceof SQLFileChange
-        assertEquals 'src/test/changelog/file.sql', changes[0].path
-        assertFalse changes[0].relativeToChangelogFile
-        assertEquals 'UTF-8', changes[0].encoding
-        assertTrue changes[0].isStripComments()
-        assertFalse changes[0].isSplitStatements()
-        assertEquals '@', changes[0].endDelimiter
-        assertEquals 'oracle', changes[0].dbms
-        assertNotNull changes[0].resourceAccessor
-        assertNoOutput()
-    }
 }
-

@@ -1,3 +1,55 @@
+Changes for 4.1
+================
+- Attributes can be passed as positional method parameter for each element, that adds **auto complete** 
+  @ script edit in IDEs with groovy support like IntelliJ IDEA, Eclipse and Netbeans.
+
+- This solution **adds inplace documentation** also in IDEs 
+
+- From now **if the IDE does not show error during script edit, there is a big chance the script is 
+valid and no parse error occurs @ runtime**
+
+- Error messages are improved containing the script name+line and possible names / parameters
+e.g: "changeSet includerelative/pathinclude1::1::nvoxland: Unrecognized child element: 'colum' for 
+'createTable'! Valid elements are [column] @changelogs/pathincluded/pathinclude1.changelog.groovy:10"
+
+- Liquibase `Enum`s can also be used as either strings or just their enum value as every script has
+  imported statically
+  `liquibase.database.ObjectQuotingStrategy.*`
+  ,`liquibase.changelog.ChangeSet.ValidationFailOption.*`
+  ,`liquibase.database.ColumnParentTypeEnum.*`
+  ,`liquibase.precondition.core.PreconditionContainer.FailOption.*`
+
+- `column` element attributes are limited to their meaningful set e.g. `index` / `column` does not offer
+  attributes like `defaultValueNumeric` as it is ignored during execution.
+
+- `property` element handling logs warning("'name' and 'value' parameters are ignored if 'file' is set")
+
+- `output` element is supported with `message` in closure parameter too 
+
+_Known limitations:_
+1. elements with 2 disjunct parameter sets return only one possible parameter list in the error message
+2. `whereParams` not using the new error handling
+
+Fixes:
+- `databaseChangeLog/includeAllSql` related test were not running on Windows
+- `include@errorIfMissing` should be true by default
+
+- **Converter from XML**: To convert XML changelog _and all XMLs it includes transitively_ run
+> `java -jar liquibase-groovy-dsl-4.1.0.jar -cp liquibase-core-4.xx.x.jar;<liquibase dependencies> <change log xml>`
+_Known limitations: `rollback` and `createProcedure` elements are not converted correctly_
+
+**Breaking change**
+- The change [createProcedure](https://docs.liquibase.com/reference-guide/change-types/createprocedure)
+  has 2 disjunct set of properties:  
+  1. `path` + related properties if the procedure text shall be read from a separate file.
+  2. If those are not defined, the SQL is expected to be in the child `procedureText` closure.
+     Now calling `createProcedure 'string'` will treat 'string' as the `path` instead of the SQL
+     body as earlier
+
+- Multiple nested `comment`s are not concatenated (latest wins) in `sql` element ike in other file formats
+
+- `ArgumentSetTwice` exception is thrown, when both `context` and `contextFilter` is set for `include[All]`
+
 Changes for 4.0.1
 =================
 

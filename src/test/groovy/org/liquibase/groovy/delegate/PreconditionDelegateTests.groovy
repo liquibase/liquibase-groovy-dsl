@@ -13,28 +13,23 @@
  */
 package org.liquibase.groovy.delegate
 
+
 import liquibase.exception.ChangeLogParseException
-import liquibase.precondition.core.NotPrecondition
-import liquibase.precondition.core.UniqueConstraintExistsPrecondition;
-import org.junit.Test
-import static org.junit.Assert.*
 import liquibase.changelog.ChangeLogParameters
 import liquibase.changelog.DatabaseChangeLog
-import liquibase.precondition.core.DBMSPrecondition
+import liquibase.parser.groovy.exception.InvalidArguments
+import liquibase.parser.groovy.exception.InvalidAttribute
+import liquibase.parser.groovy.exception.UnrecognizedElement
 import liquibase.precondition.Precondition
-import liquibase.precondition.core.RunningAsPrecondition
-import liquibase.precondition.core.ChangeSetExecutedPrecondition
-import liquibase.precondition.core.ColumnExistsPrecondition
-import liquibase.precondition.core.TableExistsPrecondition
-import liquibase.precondition.core.ViewExistsPrecondition
-import liquibase.precondition.core.ForeignKeyExistsPrecondition
-import liquibase.precondition.core.IndexExistsPrecondition
-import liquibase.precondition.core.SequenceExistsPrecondition
-import liquibase.precondition.core.PrimaryKeyExistsPrecondition
-import liquibase.precondition.core.AndPrecondition
-import liquibase.precondition.core.OrPrecondition
-import liquibase.precondition.core.SqlPrecondition
+import liquibase.precondition.core.*
 import liquibase.precondition.CustomPreconditionWrapper
+
+import static groovy.lang.Closure.DELEGATE_FIRST
+import static org.liquibase.groovy.helper.util.*
+import static org.liquibase.groovy.helper.constants.*
+import static liquibase.database.ObjectQuotingStrategy.QUOTE_ALL_OBJECTS
+
+import spock.lang.*
 
 /**
  * This class tests the creation of Liquibase ChangeSet Preconditions.  It is probably a bit of
@@ -46,230 +41,245 @@ import liquibase.precondition.CustomPreconditionWrapper
  *
  * @author Steven C. Saliman
  */
-class PreconditionDelegateTests {
+class PreconditionDelegateTests extends Specification {
 
-    /**
-     * Try creating a dbms precondition
-     */
-    @Test
-    void dbmsPrecondition() {
-        def preconditions = buildPreconditions {
-            dbms(type: 'mysql')
-        }
+    /** Try creating a dbms precondition  */
+    void "dbms '#type' arguments"() {
+        List<Precondition> preconditions = buildPreconditions cl
+        expect:
+        1 == preconditions.size()
+        mysql == (preconditions[0] as DBMSPrecondition).type
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof DBMSPrecondition
-        assertEquals 'mysql', preconditions[0].type
+        where:
+        type         | cl
+        'named'      | { dbms(type: mysql) }
+        'positional' | { dbms(mysql) }
     }
 
-    /**
-     * Try creating a runningAs precondition.
-     */
-    @Test
-    void runningAsPrecondition() {
-        def preconditions = buildPreconditions {
-            runningAs(username: 'tlberglund')
-        }
+    /** Try creating a runningAs precondition. */
+    void "runningAs '#type' arguments"() {
+        List<Precondition> preconditions = buildPreconditions cl
+        expect:
+        1 == preconditions.size()
+        tlberglund == (preconditions[0] as RunningAsPrecondition).username
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof RunningAsPrecondition
-        assertEquals 'tlberglund', preconditions[0].username
+        where:
+        type        | cl
+        'named'     | { runningAs(username: tlberglund) }
+        'positional'| { runningAs( tlberglund ) }
     }
 
-    /**
-     * Try creating a changeSetExecuted precondition.
-     */
-    @Test
-    void changeSetExecutedPrecondition() {
-        def preconditions = buildPreconditions {
-            changeSetExecuted(id: 'unleash-monkey', author: 'tlberglund', changeLogFile: 'changelog.xml')
-        }
+    void "expectedQuotingStrategy '#type' arguments"() {
+        List<Precondition> preconditions = buildPreconditions cl
+        expect:
+        1 == preconditions.size()
+        QUOTE_ALL_OBJECTS == (preconditions[0] as ObjectQuotingStrategyPrecondition).strategy
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof ChangeSetExecutedPrecondition
-        assertEquals 'unleash-monkey', preconditions[0].id
-        assertEquals 'tlberglund', preconditions[0].author
-        assertEquals 'changelog.xml', preconditions[0].changeLogFile
+        where:
+        type        | cl
+        'named'     | { expectedQuotingStrategy(strategy: 'QUOTE_ALL_OBJECTS') } // String version
+        'positional'| { expectedQuotingStrategy QUOTE_ALL_OBJECTS } // Object version
     }
 
-    /**
-     * Try creating a columnExists precondition.
-     */
-    @Test
-    void columnExistsPrecondition() {
-        def preconditions = buildPreconditions {
-            columnExists(schemaName: 'schema', tableName: 'monkey', columnName: 'emotion')
-        }
+    static final expChangeLogPropertyDefined = [
+            property: 'prop'
+            ,value: 'val'
+    ]
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof ColumnExistsPrecondition
-        assertEquals 'schema', preconditions[0].schemaName
-        assertEquals 'monkey', preconditions[0].tableName
-        assertEquals 'emotion', preconditions[0].columnName
+    /** Try creating a dbms precondition  */
+    void "changeLogPropertyDefined '#type' arguments"() {
+        verify(expChangeLogPropertyDefined, cl, ChangeLogPropertyDefinedPrecondition)
+
+        where:
+        type        | cl
+        'named'     | { changeLogPropertyDefined(expChangeLogPropertyDefined) }
+        'positional'| { changeLogPropertyDefined( it.property, it.value ) }
+    }
+    static final String changeLogXML = 'changelog.xml'
+
+    static final expChangeSetExecuted = [
+            id: 'unleash-monkey'
+            ,author: tlberglund
+            ,changeLogFile: changeLogXML
+    ]
+
+    /** Try creating a changeSetExecuted precondition.  */
+    void "changeSetExecuted '#type' arguments"() {
+        verify (expChangeSetExecuted, cl, ChangeSetExecutedPrecondition)
+
+        where:
+        type         | cl
+        'named'      | { changeSetExecuted(id: it.id, author: it.author, changeLogFile: it.changeLogFile)}
+        'mixed'      | { changeSetExecuted( it.id, changeLogFile: it.changeLogFile, it.author)}
+        'positional' | { changeSetExecuted( it.id, tlberglund, it.changeLogFile) }
     }
 
-    /**
-     * try creating a tableExists precondition.
-     */
-    @Test
-    void tableExistsPrecondition() {
-        def preconditions = buildPreconditions {
-            tableExists(schemaName: 'schema', tableName: 'monkey')
-        }
+    /** Try creating a columnExists precondition.  */
+    void "columnExists '#type' arguments"() {
+        verify( expPropsColumnTableSchemaCatalogName, cl, ColumnExistsPrecondition)
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof TableExistsPrecondition
-        assertEquals 'schema', preconditions[0].schemaName
-        assertEquals 'monkey', preconditions[0].tableName
+        where:
+        type         | cl
+        'named'      | {
+            columnExists expPropsColumnTableSchemaCatalogName}
+        'positional' | {
+            columnExists( columnName, tableName, schemaName, catalogName) }
+        'mixed'      | {
+            columnExists( catalogName: catalogName, columnName, tableName, schemaName)}
     }
 
-    /**
-     * Try creating a vewExists precondition.
-     */
-    @Test
-    void viewExistsPrecondition() {
-        def preconditions = buildPreconditions {
-            viewExists(schemaName: 'schema', viewName: 'monkey_view')
-        }
+    /** try creating a tableExists precondition. */
+    void "tableExists '#type' arguments"() {
+        verify( expPropsTableSchemaCatalogName, cl, TableExistsPrecondition)
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof ViewExistsPrecondition
-        assertEquals 'schema', preconditions[0].schemaName
-        assertEquals 'monkey_view', preconditions[0].viewName
+        where:
+        type         | cl
+        'named'      | { tableExists(expPropsTableSchemaCatalogName)}
+        'positional' | { tableExists( tableName, schemaName, catalogName) }
+        'mixed'      | { tableExists( catalogName: catalogName, tableName, schemaName)}
     }
 
-    /**
-     * Try creating a foreignKeyConstraintExists precondition
-     */
-    @Test
-    void foreignKeyConstraintExistsPrecondition() {
-        def preconditions = buildPreconditions {
-            foreignKeyConstraintExists(schemaName: 'schema', foreignKeyName: 'fk_monkey_key')
-        }
+    void "tableExists '#type' arguments"() {
+        verify( expPropsTableSchemaCatalogName, cl, TableIsEmptyPrecondition)
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof ForeignKeyExistsPrecondition
-        assertEquals 'schema', preconditions[0].schemaName
-        assertEquals 'fk_monkey_key', preconditions[0].foreignKeyName
+        where:
+        type         | cl
+        'named'      | { tableIsEmpty(expPropsTableSchemaCatalogName)}
+        'positional' | { tableIsEmpty( tableName, schemaName, catalogName) }
+        'mixed'      | { tableIsEmpty( catalogName: catalogName, tableName, schemaName)}
     }
 
-    /**
-     * Try creating an indexExists precondition.
-     */
-    @Test
-    void indexExistsPrecondition() {
-        def preconditions = buildPreconditions {
-            indexExists(schemaName: 'schema', indexName: 'index')
-        }
+     /** Try creating a vewExists precondition. */
+    void "viewExists '#type' arguments"() {
+        verify( expPropsViewSchemaCatalogName, cl, ViewExistsPrecondition)
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof IndexExistsPrecondition
-        assertEquals 'schema', preconditions[0].schemaName
-        assertEquals 'index', preconditions[0].indexName
+        where:
+        type         | cl
+        'named'      | {
+            viewExists(schemaName: schemaName, viewName: it.viewName, catalogName: catalogName)}
+        'positional' | {
+            viewExists( it.viewName, schemaName, catalogName) }
+        'mixed'      | {
+            viewExists( catalogName: catalogName, it.viewName, schemaName)}
     }
 
-    /**
-     * Try creating a sequenceExists precondition.
-     */
-    @Test
-    void sequenceExistsPrecondition() {
-        def preconditions = buildPreconditions {
-            sequenceExists(schemaName: 'schema', sequenceName: 'seq_next_monkey')
-        }
+    static final expForeignKeyConstraintExists = expPropsSchemaAndCatalogName + [
+            foreignKeyName: 'fk_monkey_key'
+            ,foreignKeyTableName: tableName
+    ]
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof SequenceExistsPrecondition
-        assertEquals 'schema', preconditions[0].schemaName
-        assertEquals 'seq_next_monkey', preconditions[0].sequenceName
+    /** Try creating a foreignKeyConstraintExists precondition */
+    void "foreignKeyConstraintExists '#type' arguments"() {
+        verify expForeignKeyConstraintExists, cl, ForeignKeyExistsPrecondition
+
+        where:
+        type         | cl
+        'named'      | {
+            foreignKeyConstraintExists expForeignKeyConstraintExists }
+        'positional' | {
+            foreignKeyConstraintExists it.foreignKeyName, tableName, schemaName, catalogName }
+        'mixed'      | {
+            foreignKeyConstraintExists catalogName: catalogName, it.foreignKeyName, tableName, schemaName}
     }
 
-    /**
-     * Try creating a primaryKeyExists precondition.
-     */
-    @Test
-    void primaryKeyExistsPrecondition() {
-        def preconditions = buildPreconditions {
-            primaryKeyExists(schemaName: 'schema', primaryKeyName: 'pk_monkey')
-        }
+    static final expIndexExists = expPropsTableSchemaCatalogName + [
+            indexName: 'index'
+           ,columnNames: columnNames // Either or indexName
+    ]
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof PrimaryKeyExistsPrecondition
-        assertEquals 'schema', preconditions[0].schemaName
-        assertEquals 'pk_monkey', preconditions[0].primaryKeyName
+    /** Try creating an indexExists precondition. */
+    void "indexExists '#type' arguments"() {
+        verify expIndexExists, cl, IndexExistsPrecondition
+
+        where:
+        type         | cl
+        'named'      | {
+            indexExists it }
+        'positional' | {
+            indexExists it.indexName, tableName, columnNames, schemaName, catalogName }
+        'mixed'      | {
+            indexExists catalogName: catalogName, it.indexName, tableName, columnNames, schemaName}
     }
 
+    static final expRowCount = expPropsTableSchemaCatalogName + [
+        expectedRows: 1
+    ]
 
-    /**
-     * Try creating a uniqueConstraintExists precondition.
-     */
-    @Test
-    void uniqueConstraintExistsPrecondition() {
-        def preconditions = buildPreconditions {
-            uniqueConstraintExists(catalogName: 'zoo_catalog',
-                                   schemaName: 'schema',
-                                   tableName: 'monkey',
-                                   constraintName: 'uk_monkey_name',
-                                   columnNames: 'name')
-        }
+    void "rowCount '#type' arguments"() {
+        verify expRowCount, cl, RowCountPrecondition
 
-        assertNotNull preconditions
-        assertTrue preconditions.every { precondition -> precondition instanceof Precondition }
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof UniqueConstraintExistsPrecondition
-        assertEquals 'zoo_catalog', preconditions[0].catalogName
-        assertEquals 'schema', preconditions[0].schemaName
-        assertEquals 'monkey', preconditions[0].tableName
-        assertEquals 'uk_monkey_name', preconditions[0].constraintName
-        assertEquals 'name', preconditions[0].columnNames
+        where:
+        type         | cl
+        'named'      | { rowCount it}
+        'positional' | { rowCount( it.expectedRows, tableName, schemaName, catalogName) }
+        'mixed'      | { rowCount( catalogName: catalogName, '1', tableName, schemaName)} // int as string
     }
 
+    static final expSequenceExists = expPropsSchemaAndCatalogName + [
+            sequenceName: sequenceName
+    ]
 
-    /**
-     * And clauses are handled a little differently. Make sure we can create it correctly.
-     */
-    @Test
+    /** Try creating a sequenceExists precondition. */
+    void "sequenceExists '#type' arguments"() {
+        verify expSequenceExists, cl, SequenceExistsPrecondition
+
+        where:
+        type         | cl
+        'named'      | { sequenceExists( it )}
+        'positional' | { sequenceExists( it.sequenceName, schemaName, catalogName) }
+        'mixed'      | { sequenceExists( catalogName: catalogName, it.sequenceName, schemaName)}
+    }
+
+    static final expPrimaryKeyExists = expPropsTableSchemaCatalogName + [
+            primaryKeyName: primaryKeyName
+    ]
+
+    /** Try creating a primaryKeyExists precondition. */
+    void "primaryKeyExists '#type' arguments"() {
+        verify( expPrimaryKeyExists, cl, PrimaryKeyExistsPrecondition)
+
+        where:
+        type         | cl
+        'named'      | { primaryKeyExists( it )}
+        'positional' | { primaryKeyExists( it.primaryKeyName, tableName, schemaName, catalogName) }
+        'mixed'      | { primaryKeyExists( catalogName: catalogName, it.primaryKeyName, tableName , schemaName)}
+    }
+
+    static final expUniqueConstraintExists = expPropsTableSchemaCatalogName + [
+            constraintName: constraintName
+            ,columnNames: columnNames
+    ]
+
+    /** Try creating a uniqueConstraintExists precondition.  */
+    void "uniqueConstraintExists '#type' arguments"() {
+        verify( expUniqueConstraintExists, cl , UniqueConstraintExistsPrecondition)
+
+        where:
+        type         | cl
+        'named'      | { uniqueConstraintExists( it )}
+        'positional' | { uniqueConstraintExists( tableName, it.constraintName, columnNames, schemaName, catalogName) }
+        'mixed'      | { uniqueConstraintExists( tableName, catalogName: catalogName, it.constraintName, columnNames, schemaName)}
+    }
+
+    /** And clauses are handled a little differently. Make sure we can create it correctly. */
     void andClause() {
         def preconditions = buildPreconditions {
             and {
-                dbms(type: 'mysql')
-                runningAs(username: 'tlberglund')
+                dbms( mysql)
+                runningAs( 'tlberglund')
             }
         }
-
-        assertNotNull preconditions
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof AndPrecondition
-        def andedPreconditions = preconditions[0].nestedPreconditions
-        assertNotNull andedPreconditions
-        assertEquals 2, andedPreconditions.size()
-        assertTrue andedPreconditions[0] instanceof DBMSPrecondition
-        assertTrue andedPreconditions[1] instanceof RunningAsPrecondition
+        expect:
+        1 == preconditions.size()
+        (preconditions[0] as AndPrecondition).with {
+            null != nestedPreconditions
+            2 == nestedPreconditions.size()
+            nestedPreconditions[0] instanceof DBMSPrecondition
+            nestedPreconditions[1] instanceof RunningAsPrecondition
+        }
     }
 
-    /**
-     * Or clauses are handled a little differently. Make sure we can create it correctly.
-     */
-    @Test
+    /** Or clauses are handled a little differently. Make sure we can create it correctly.   */
     void orClause() {
         def preconditions = buildPreconditions {
             or {
@@ -277,21 +287,17 @@ class PreconditionDelegateTests {
                 runningAs(username: 'tlberglund')
             }
         }
-
-        assertNotNull preconditions
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof OrPrecondition
-        def oredPreconditions = preconditions[0].nestedPreconditions
-        assertNotNull oredPreconditions
-        assertEquals 2, oredPreconditions.size()
-        assertTrue oredPreconditions[0] instanceof DBMSPrecondition
-        assertTrue oredPreconditions[1] instanceof RunningAsPrecondition
+        expect:
+        1 == preconditions.size()
+        (preconditions[0] as OrPrecondition).with {
+            null != nestedPreconditions
+            2 == nestedPreconditions.size()
+            nestedPreconditions[0] instanceof DBMSPrecondition
+            nestedPreconditions[1] instanceof RunningAsPrecondition
+        }
     }
 
-    /**
-     * Not clauses are handled a little differently. Make sure we can create it correctly.
-     */
-    @Test
+    /** Not clauses are handled a little differently. Make sure we can create it correctly.  */
     void notClause() {
         def preconditions = buildPreconditions {
             not {
@@ -299,63 +305,59 @@ class PreconditionDelegateTests {
                 runningAs(username: 'tlberglund')
             }
         }
-
-        assertNotNull preconditions
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof NotPrecondition
-        def notedPreconditions = preconditions[0].nestedPreconditions
-        assertNotNull notedPreconditions
-        assertEquals 2, notedPreconditions.size()
-        assertTrue notedPreconditions[0] instanceof DBMSPrecondition
-        assertTrue notedPreconditions[1] instanceof RunningAsPrecondition
+        expect:
+        1 == preconditions.size()
+        (preconditions[0] as NotPrecondition).with {
+            null != nestedPreconditions
+            2 == nestedPreconditions.size()
+            nestedPreconditions[0] instanceof DBMSPrecondition
+            nestedPreconditions[1] instanceof RunningAsPrecondition
+        }
     }
 
-    /**
-     * SqlCheck preconditions are treated a little different than most. Try creating one with no
+    /** SqlCheck preconditions are treated a little different than most. Try creating one with no
      * attributes and an empty closure to make sure we get no side effects.
      */
-    @Test
     void sqlCheckEmpty() {
         def preconditions = buildPreconditions {
             sqlCheck([:]) {}
         }
-
-        assertNotNull preconditions
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof SqlPrecondition
-        assertNull preconditions[0].expectedResult
-        assertNull preconditions[0].sql
+        expect:
+        1 == preconditions.size()
+        (preconditions[0] as SqlPrecondition).with {
+            !expectedResult
+            !sql
+        }
     }
 
-    /**
-     * Try creating a sqlCheck precondition with an invalid attribute
-     */
-    @Test(expected = ChangeLogParseException)
+    /** Try creating a sqlCheck precondition with an invalid attribute */
     void sqlCheckInvalidAttribute() {
-        buildPreconditions {
+        when:  buildPreconditions {
             sqlCheck(expected: 'angry') {
                 "SELECT emotion FROM monkey WHERE id=2884"
             }
         }
+        then:  thrown(InvalidAttribute)
     }
 
-    /**
-     * Try creating a sqlCheck precondition with all currently known attributes and some SQL in the
+    /** Try creating a sqlCheck precondition with all currently known attributes and some SQL in the
      * closure.
      */
-    @Test
-    void sqlCheckFull() {
-        def preconditions = buildPreconditions {
-            sqlCheck(expectedResult: 'angry') {
-                "SELECT emotion FROM monkey WHERE id=2884"
-            }
-        }
+    static final expSqlCheck = [
+        sql: sqlSelect
+       ,expectedResult: 'res'
+    ]
 
-        assertNotNull preconditions
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof SqlPrecondition
-        assertEquals 'angry', preconditions[0].expectedResult
-        assertEquals 'SELECT emotion FROM monkey WHERE id=2884', preconditions[0].sql
+    void "sqlCheck '#type' arguments"() {
+        verify( expSqlCheck, cl , SqlPrecondition)
+
+        where:
+        type         | cl
+        'named'      | { sqlCheck( it )}
+        'positional' | { sqlCheck( 'res', sqlSelect) }
+        'child'      | { sqlCheck( expectedResult: 'res', {sqlSelect})}
+        'mixed'      | { sqlCheck( expectedResult: 'res', sqlSelect)}
+        'positional+child'| { sqlCheck( 'res', {sqlSelect})}
     }
 
     /**
@@ -363,64 +365,55 @@ class PreconditionDelegateTests {
      * checks here. This first test sees what happens when a custom precondition is made with an
      * invalid attribute.
      */
-    @Test(expected = ChangeLogParseException)
     void customPreconditionInvalidAttribute() {
-        buildPreconditions {
+        when: buildPreconditions {
             customPrecondition(class: 'org.liquibase.precondition.MonkeyFailPrecondition') {
                 param(paramName: 'emotion', value: 'angry')
             }
         }
+        then: thrown(ChangeLogParseException)
     }
 
-    /**
-     * Try a custom precondition with a nested param that has an invalid attribute
-     */
-    @Test(expected = ChangeLogParseException)
+    /** Try a custom precondition with a nested param that has an invalid attribute */
     void customPreconditionInvalidParamAttribute() {
-        buildPreconditions {
+        when: buildPreconditions {
             customPrecondition(className: 'org.liquibase.precondition.MonkeyFailPrecondition') {
                 param(paramName: 'emotion')
             }
         }
+        then: thrown(ChangeLogParseException)
     }
 
-    /**
-     * Try a custom precondition with a nested param that has an invalid attribute
-     */
-    @Test(expected = ChangeLogParseException)
+    /** Try a custom precondition with a nested param that has an invalid attribute */
     void customPreconditionMissingName() {
-        buildPreconditions {
+        when: buildPreconditions {
             customPrecondition(className: 'org.liquibase.precondition.MonkeyFailPrecondition') {
                 param(value: 'angry')
             }
         }
+        then: thrown(ChangeLogParseException)
     }
 
     /**
      * Test creating a custom precondition with a parameter that has a name but no value.  It is
-     * unusual, but legal.  When this happens, the missing value will be converted by Liquibase to
+     * unusual, but legal.  When this happens, the missing value will be converted to
      * the word "null"
      */
-    @Test
     void customPreconditionMissingValue() {
         def preconditions = buildPreconditions {
             customPrecondition(className: 'org.liquibase.precondition.MonkeyFailPrecondition') {
                 param(name: 'emotion')
             }
         }
-
-        assertNotNull preconditions
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof CustomPreconditionWrapper
-        def params = preconditions[0].paramValues
-        assertEquals 1, preconditions[0].paramValues.size()
-        assertEquals 'null', params.emotion
+        expect:
+        1 == preconditions.size()
+        (preconditions[0] as CustomPreconditionWrapper).with {
+            1 == paramValues.size()
+            null == paramValues.emotion
+        }
     }
 
-    /**
-     * Try creating a custom precondition with 2 nested param elements.
-     */
-    @Test
+    /** Try creating a custom precondition with 2 nested param elements. */
     void customPreconditionTwoParamElements() {
         def preconditions = buildPreconditions {
             customPrecondition(className: 'org.liquibase.precondition.MonkeyFailPrecondition') {
@@ -428,20 +421,16 @@ class PreconditionDelegateTests {
                 param(name: 'rfid-tag', value: 28763)
             }
         }
-
-        assertNotNull preconditions
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof CustomPreconditionWrapper
-        def params = preconditions[0].paramValues
-        assertEquals 2, preconditions[0].paramValues.size()
-        assertEquals 'angry', params.emotion
-        assertEquals '28763', params['rfid-tag'] // Liquibase converts to string.
+        expect:
+        1 == preconditions.size()
+        (preconditions[0] as CustomPreconditionWrapper).with {
+            2 == paramValues.size()
+            'angry' == paramValues.emotion
+            '28763' == paramValues['rfid-tag'] // Liquibase converts to string.
+        }
     }
 
-    /**
-     * Test creating a precondition using nested methods instead of 'param' elements.
-     */
-    @Test
+    /** Test creating a precondition using nested methods instead of 'param' elements.  */
     void customPreconditionFails() {
         def preconditions = buildPreconditions {
             customPrecondition(className: 'org.liquibase.precondition.MonkeyFailPrecondition') {
@@ -449,51 +438,58 @@ class PreconditionDelegateTests {
                 'rfid-tag'(28763)
             }
         }
-
-        assertNotNull preconditions
-        assertEquals 1, preconditions.size()
-        assertTrue preconditions[0] instanceof CustomPreconditionWrapper
-        def params = preconditions[0].paramValues
-        assertEquals 2, preconditions[0].paramValues.size()
-        assertEquals 'angry', params.emotion
-        assertEquals '28763', params['rfid-tag'] // Liquibase converts to string.
-    }
-
-    /**
-     * Try creating an invalid precondition
-     */
-    @Test(expected = ChangeLogParseException)
-    void invalidPrecondition() {
-        buildPreconditions {
-            linkExists(host: 'www.thewebsiteisdown.com')
+        expect:
+        1 == preconditions.size()
+        (preconditions[0] as CustomPreconditionWrapper).with {
+            2 == paramValues.size()
+            'angry' == paramValues.emotion
+            '28763' == paramValues['rfid-tag'] // Liquibase converts to string.
         }
     }
 
-    /**
-     * Try creating a valid precondition, but with an invalid attribute.
+    void "precondition error #type" () {
+        when:
+        buildPreconditions closure
+        then:
+        thrown(expEx)
+        where:
+        type                   | closure                                           | expEx
+        'no arguments'    | { dbms }                                                | InvalidArguments
+        'invalid precondition' | { linkExists (host: 'www.thewebsiteisdown.com') } | UnrecognizedElement
+        'existing with wrong property'| { tableExists(name: 'monkey') }            | InvalidAttribute // This should be InvalidArguments
+        // TODO works outside 'missing arguments'    | { dbms() }                                       | InvalidArguments
+    }
+
+    /** Verify if the one and only precondition built using the {@code closure} has all the properties set
+     * as defined in the {@code exp} map. See {@link util.assertPropsSet()}
+     * @param expectedProps expected (name ->) property values map
+     * @param closure used to create the precondition
+     * @param cls Class of the expected precondition
      */
-    @Test(expected = ChangeLogParseException)
-    void invalidPreconditionAttribute() {
-        buildPreconditions {
-            tableExists(name: 'monkey') // this is the wrong attribute on purpose
-        }
+    static verify(Map expectedProps, closure, Class cls) {
+        List<Precondition> preconditions = buildPreconditions( closure, expectedProps )
+        assert 1 == preconditions.size()
+        assertPropsSet expectedProps, cls.cast(preconditions[0] )
     }
 
     /**
-     * Helper method to run the precondition closure and return the preconditions.
+     * Helper method to run the precondition with the first parameter as argument closure and return the preconditions.
+     * @param args optional Map parameter for the closure (for expected parameters)
      * @param closure the closure to call
      * @return the preconditions that were created.
      */
-    private def buildPreconditions(Closure closure) {
+    static List<Precondition> buildPreconditions(
+       @DelegatesTo(value = PreconditionDelegate, strategy=DELEGATE_FIRST) Closure closure,
+        clArgs = null) {
         def changelog = new DatabaseChangeLog()
         changelog.changeLogParameters = new ChangeLogParameters()
-
-        def delegate = new PreconditionDelegate(databaseChangeLog: changelog)
-        closure.delegate = delegate
-        closure.resolveStrategy = Closure.DELEGATE_FIRST
-        closure.call()
-
+        def delegate = new PreconditionDelegate(changelog,'')
+        delegate.callOn( closure, clArgs)
         delegate.preconditions
+    }
+
+    void "errors"(){ // TODO test  error cases
+        // viewExists( it.tableName, columnName, schemaName, catalogName) }
     }
 }
 

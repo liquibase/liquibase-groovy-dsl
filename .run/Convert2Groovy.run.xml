@@ -1,0 +1,21 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Convert2Groovy" type="Application" factoryName="Application" nameIsGenerated="true">
+    <option name="MAIN_CLASS_NAME" value="liquibase.Convert2Groovy" />
+    <module name="org.liquibase.groovy-dsl.test" />
+    <option name="PROGRAM_PARAMETERS" value="changelog.xml" />
+    <selectedOptions>
+      <option name="environmentVariables" visible="false" />
+    </selectedOptions>
+    <option name="VM_PARAMETERS" value="-Djava.util.logging.config.file=logging.properties" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/" />
+    <extension name="coverage">
+      <pattern>
+        <option name="PATTERN" value="liquibase.*" />
+        <option name="ENABLED" value="false" />
+      </pattern>
+    </extension>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

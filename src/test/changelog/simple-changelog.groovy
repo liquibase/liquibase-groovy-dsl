@@ -12,7 +12,7 @@
  * the License.
  */
 
-databaseChangeLog(logicalFilePath: '.', contextFilter: 'myContext') {
+databaseChangeLog(logicalFilePath: '.', contextFilter: 'myContext', objectQuotingStrategy: 'QUOTE_ALL_OBJECTS') {
 
     changeSet(author: 'stevesaliman', id: 'change-set-001') {
 

@@ -26,11 +26,8 @@ import liquibase.resource.DirectoryResourceAccessor
 import org.junit.Before
 import org.junit.Test
 
-import static org.junit.Assert.assertEquals
-import static org.junit.Assert.assertFalse
-import static org.junit.Assert.assertNotNull
-import static org.junit.Assert.assertNull
-import static org.junit.Assert.assertTrue
+import static org.junit.Assert.*
+import static DelegateUtil.callOn
 
 /**
  * One of several test classes for the {@link DatabaseChangeLogDelegate}.  The number of tests for
@@ -767,7 +764,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAllSql(path: '${INCLUDED_SQL_DIR}', minDepth: 2)
+  includeAllSql(path: '${INCLUDED_SQL_PATH}', minDepth: 2)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -802,7 +799,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAllSql(path: '${INCLUDED_SQL_DIR}', maxDepth: 1)
+  includeAllSql(path: '${INCLUDED_SQL_PATH}', maxDepth: 1)
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -1143,10 +1140,8 @@ databaseChangeLog {
     private def buildChangeLog(Closure closure) {
         def changelog = new DatabaseChangeLog(MOCK_CHANGELOG)
         changelog.changeLogParameters = new ChangeLogParameters()
-        closure.delegate = new DatabaseChangeLogDelegate(changelog)
-        closure.delegate.resourceAccessor = resourceAccessor
-        closure.resolveStrategy = Closure.DELEGATE_FIRST
-        closure.call()
+       callOn(new DatabaseChangeLogDelegate(changelog, resourceAccessor)
+            ,closure)
         return changelog
     }
 
@@ -1181,7 +1176,7 @@ insert into monkey(name, emotion) values('thor', 'thrashed');
 """)
 
 
-        return INCLUDED_SQL_DIR.path.replaceAll("\\\\", "/")
+        return INCLUDED_SQL_PATH//.path.replaceAll("\\\\", "/")
     }
 
     private File createFileFrom(directory, suffix, text) {

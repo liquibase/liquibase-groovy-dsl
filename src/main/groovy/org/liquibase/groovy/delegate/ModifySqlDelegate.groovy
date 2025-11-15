@@ -17,8 +17,8 @@ package org.liquibase.groovy.delegate
 import liquibase.ContextExpression
 import liquibase.Labels
 import liquibase.exception.ChangeLogParseException
-import liquibase.sql.visitor.SqlVisitor;
-import liquibase.sql.visitor.SqlVisitorFactory;
+import liquibase.sql.visitor.SqlVisitor
+import liquibase.sql.visitor.SqlVisitorFactory
 import liquibase.changelog.ChangeSet
 import liquibase.util.PatchedObjectUtil
 
@@ -28,16 +28,18 @@ import liquibase.util.PatchedObjectUtil
  *
  * @author Steven C. Saliman
  */
-class ModifySqlDelegate {
-    def modifySqlDbmsList
-    def modifySqlAppliedOnRollback
-    def modifySqlContexts
-    def modifySqlLabels
-    def sqlVisitors = []
-    def changeSet
-
+@groovy.transform.CompileStatic
+class ModifySqlDelegate extends Delegatee<Tag>{ // TODO check if can be embedded in changeset or just databaseChangeLog
+    protected Set<String> modifySqlDbmsList
+    protected boolean modifySqlAppliedOnRollback
+    protected ContextExpression modifySqlContexts
+    protected Labels modifySqlLabels
+    protected List<SqlVisitor> sqlVisitors = []
+    protected ChangeSet changeSet
+    static enum Tag { replace, regExpReplace, prepend, append }
 
     ModifySqlDelegate(Map params = [:], ChangeSet changeSet) {
+        super(changeSet.changeLog, fullChangeSetId(changeSet) + '/modifySql')
         this.changeSet = changeSet
 
         // params are optional
@@ -68,29 +70,40 @@ class ModifySqlDelegate {
         }
     }
 
-
     def prepend(Map params = [:]) {
-        createSqlVisitor('prepend', params)
+        createSqlVisitor(Tag.prepend, params)
     }
 
+    def prepend(String value) {
+        prepend ([value: value])
+    }
 
     def append(Map params = [:]) {
-        createSqlVisitor('append', params)
+        createSqlVisitor(Tag.append, params)
     }
 
+    def append(String value) {
+        append ([value: value])
+    }
 
     def replace(Map params = [:]) {
-        createSqlVisitor('replace', params)
+        createSqlVisitor(Tag.replace, params)
     }
 
+    def replace(String replace, String with) {
+       createSqlVisitor(Tag.replace, argsAsMap(Tag.replace, replace, with))
+    }
 
     def regExpReplace(Map params = [:]) {
-        createSqlVisitor('regExpReplace', params)
+        createSqlVisitor(Tag.regExpReplace, params)
     }
 
+    def regExpReplace(String replace, String with) {
+        regExpReplace argsAsMap(Tag.replace, replace, with)
+    }
 
-    private def createSqlVisitor(String type, Map params = [:]) {
-        SqlVisitor sqlVisitor = SqlVisitorFactory.getInstance().create(type)
+    private def createSqlVisitor(Tag type, Map<String, Object> params = [:]) {
+        SqlVisitor sqlVisitor = SqlVisitorFactory.getInstance().create(type.name())
 
         // Pass parameters through to the underlying Liquibase object.
         params.each { key, value ->
@@ -123,7 +136,7 @@ class ModifySqlDelegate {
      * @param name the name of the method Groovy wanted to call.
      * @param args the original arguments to that method.
      */
-    def methodMissing(String name, params) {
+    protected def methodMissing(String name, params) {
         throw new ChangeLogParseException("ChangeSet '${changeSet.id}': '${name}' is not a valid child element of modifySql closures.")
     }
 
