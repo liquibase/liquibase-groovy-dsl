@@ -1,0 +1,22 @@
+plugins {
+    id 'java'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation "org.liquibase:liquibase-core:$testProjectLiquibaseVersion"
+    testImplementation("org.liquibase:liquibase-groovy-dsl:included-build-version") { transitive = false }
+    testRuntimeOnly "org.apache.groovy:groovy:$testProjectGroovyVersion"
+
+    testImplementation "junit:junit:4.13.2"
+    testRuntimeOnly "com.h2database:h2:1.4.200"
+}
+
+test {
+    testLogging {
+        events 'passed', 'failed', 'standard_out'
+    }
+}

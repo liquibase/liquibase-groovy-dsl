@@ -1,0 +1,3 @@
+rootProject.name = 'issue-demo-project'
+
+includeBuild("../")
