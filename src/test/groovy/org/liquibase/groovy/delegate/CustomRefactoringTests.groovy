@@ -292,8 +292,8 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertTrue changes[0] instanceof RawSQLChange
         assertNull changes[0].dbms
         assertNull changes[0].endDelimiter
-        assertTrue changes[0].splitStatements
-        assertFalse changes[0].stripComments
+        assertTrue changes[0].isSplitStatements()
+        assertFalse changes[0].isStripComments()
         assertNull changes[0].sql
         assertNull changes[0].comment
         assertNotNull changes[0].resourceAccessor
@@ -316,8 +316,8 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertTrue changes[0] instanceof RawSQLChange
         assertNull changes[0].dbms
         assertNull changes[0].endDelimiter
-        assertTrue changes[0].splitStatements
-        assertFalse changes[0].stripComments
+        assertTrue changes[0].isSplitStatements()
+        assertFalse changes[0].isStripComments()
         assertEquals "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)", changes[0].sql
         assertNull changes[0].comment
         assertNotNull changes[0].resourceAccessor
@@ -341,8 +341,8 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertEquals 1, changes.size()
         assertNull changes[0].dbms
         assertNull changes[0].endDelimiter
-        assertTrue changes[0].splitStatements
-        assertFalse changes[0].stripComments
+        assertTrue changes[0].isSplitStatements()
+        assertFalse changes[0].isStripComments()
         assertEquals "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)", changes[0].sql
         assertNull changes[0].comment
         assertNotNull changes[0].resourceAccessor
@@ -368,8 +368,8 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertEquals 1, changes.size()
         assertNull changes[0].dbms
         assertNull changes[0].endDelimiter
-        assertTrue changes[0].splitStatements
-        assertFalse changes[0].stripComments
+        assertTrue changes[0].isSplitStatements()
+        assertFalse changes[0].isStripComments()
         assertEquals "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)", changes[0].sql
         assertEquals "No comment", changes[0].comment
         assertNotNull changes[0].resourceAccessor
@@ -397,8 +397,8 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertEquals 1, changes.size()
         assertTrue changes[0] instanceof RawSQLChange
         assertEquals 'oracle', changes[0].dbms
-        assertFalse changes[0].splitStatements
-        assertTrue changes[0].stripComments
+        assertFalse changes[0].isSplitStatements()
+        assertTrue changes[0].isStripComments()
         assertEquals '!', changes[0].endDelimiter
         assertEquals "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)", changes[0].sql
         assertNull changes[0].comment
@@ -428,8 +428,8 @@ class CustomRefactoringTests extends ChangeSetTests {
         assertEquals 1, changes.size()
         assertTrue changes[0] instanceof RawSQLChange
         assertEquals 'oracle', changes[0].dbms
-        assertFalse changes[0].splitStatements
-        assertTrue changes[0].stripComments
+        assertFalse changes[0].isSplitStatements()
+        assertTrue changes[0].isStripComments()
         assertEquals '!', changes[0].endDelimiter
         assertEquals "UPDATE monkey SET emotion='ANGRY' WHERE id IN (1,2,3,4,5)", changes[0].sql
         assertEquals "No comment", changes[0].comment

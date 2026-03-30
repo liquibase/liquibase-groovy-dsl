@@ -427,7 +427,7 @@ class NonRefactoringTransformationTests extends ChangeSetTests {
         assertNull changes[0].schemaName
         assertNull changes[0].tableName
         assertNull changes[0].file
-        assertNull changes[0].relativeToChangelogFile
+        assertNull changes[0].isRelativeToChangelogFile()
         assertNull changes[0].encoding
         assertEquals ",", changes[0].separator
         assertEquals '"', changes[0].quotchar
@@ -473,7 +473,7 @@ class NonRefactoringTransformationTests extends ChangeSetTests {
         assertEquals 'schema', changes[0].schemaName
         assertEquals 'monkey', changes[0].tableName
         assertEquals 'data.csv', changes[0].file
-        assertTrue changes[0].relativeToChangelogFile
+        assertTrue changes[0].isRelativeToChangelogFile()
         assertEquals 'UTF-8', changes[0].encoding
         assertEquals ';', changes[0].separator
         assertEquals "'", changes[0].quotchar

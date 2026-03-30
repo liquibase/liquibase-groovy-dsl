@@ -213,7 +213,7 @@ class ColumnDelegateTests {
         assertEquals 'defaultDatabaseValue', column.defaultValueComputed.value
         assertEquals 'defaultSequence', column.defaultValueSequenceNext.value
         assertEquals 'defaultValueConstraint', column.defaultValueConstraintName
-        assertTrue column.autoIncrement
+        assertTrue(((ColumnConfig) column).isAutoIncrement())
         assertEquals 3G, column.startWith
         assertEquals 4G, column.incrementBy
         assertTrue column.defaultOnNull
@@ -371,7 +371,7 @@ class ColumnDelegateTests {
         assertEquals 'defaultDatabaseValue', column.defaultValueComputed.value
         assertEquals 'defaultSequence', column.defaultValueSequenceNext.value
         assertEquals 'defaultValueConstraint', column.defaultValueConstraintName
-        assertTrue column.autoIncrement
+        assertTrue(((ColumnConfig) column).isAutoIncrement())
         assertEquals 3G, column.startWith
         assertEquals 4G, column.incrementBy
         assertTrue column.defaultOnNull
@@ -461,7 +461,7 @@ class ColumnDelegateTests {
         assertEquals 'defaultDatabaseValue', column.defaultValueComputed.value
         assertEquals 'defaultSequence', column.defaultValueSequenceNext.value
         assertEquals 'defaultValueConstraint', column.defaultValueConstraintName
-        assertTrue column.autoIncrement
+        assertTrue (((ColumnConfig) column).isAutoIncrement())
         assertEquals 3G, column.startWith
         assertEquals 4G, column.incrementBy
         assertTrue column.defaultOnNull

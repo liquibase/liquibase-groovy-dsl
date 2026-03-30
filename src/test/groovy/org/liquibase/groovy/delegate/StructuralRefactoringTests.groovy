@@ -177,7 +177,7 @@ class StructuralRefactoringTests extends ChangeSetTests {
         def changes = changeSet.changes
         assertNotNull changes
         assertEquals 1, changes.size()
-        assertNull changes[0].comments
+        assertNull changes[0].comment
         assertNull changes[0].catalogName
         assertNull changes[0].schemaName
         assertNull changes[0].procedureName
@@ -212,7 +212,7 @@ END;"""
         assertNotNull changes
         assertEquals 1, changes.size()
         assertTrue changes[0] instanceof CreateProcedureChange
-        assertNull changes[0].comments
+        assertNull changes[0].comment
         assertNull changes[0].catalogName
         assertNull changes[0].schemaName
         assertNull changes[0].procedureName
@@ -247,7 +247,7 @@ END;"""
         assertNotNull changes
         assertEquals 1, changes.size()
         assertTrue changes[0] instanceof CreateProcedureChange
-        assertNull changes[0].comments
+        assertNull changes[0].comment
         assertNull changes[0].catalogName
         assertNull changes[0].schemaName
         assertNull changes[0].procedureName
@@ -274,7 +274,7 @@ BEGIN
 END;"""
         buildChangeSet {
             createProcedure(
-                    comments: 'someComments',
+                    comment: 'someComments',
                     catalogName: 'catalog',
                     schemaName: 'schema',
                     procedureName: 'procedure',
@@ -290,7 +290,7 @@ END;"""
         assertNotNull changes
         assertEquals 1, changes.size()
         assertTrue changes[0] instanceof CreateProcedureChange
-        assertEquals 'someComments', changes[0].comments
+        assertEquals 'someComments', changes[0].comment
         assertEquals 'catalog', changes[0].catalogName
         assertEquals 'schema', changes[0].schemaName
         assertEquals 'procedure', changes[0].procedureName
