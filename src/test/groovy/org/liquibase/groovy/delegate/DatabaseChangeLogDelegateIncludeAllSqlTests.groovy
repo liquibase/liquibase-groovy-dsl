@@ -138,6 +138,7 @@ databaseChangeLog {
      * include them all in the right order, with subdirectory change between base dir changes.
      * This test makes sure that tokens don't affect paths.
      * <p>
+     * This test also verifies the default behavior of excluding extensions in the change set id.
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
@@ -164,10 +165,16 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
+        // Make sure the ids start the way we expect and, since we are not trying to keep the
+        // suffix, that the ".sql" is filtered out.
         assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[0].id.contains(".sql")
         assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[1].id.contains(".sql")
         assertTrue changeSets[2].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[2].id.contains(".sql")
         assertTrue changeSets[3].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[3].id.contains(".qry") // Remember this one has a different extension.
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         // Make sure each included change is for the expected file
@@ -187,6 +194,9 @@ databaseChangeLog {
      * contextFilter and a context to make sure we get the contextFilter.  It also makes sure our
      * default endsWithFilter is properly set to include only groovy files.
      * <p>
+     * Finally, this test will also verify that the idKeepsExtension preserves the extension when
+     * set to true.
+     * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
@@ -196,7 +206,7 @@ databaseChangeLog {
 
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAllSql(path: '${INCLUDED_SQL_PATH}', context: 'override', contextFilter: 'myContext')
+  includeAllSql(path: '${INCLUDED_SQL_PATH}', idKeepsExtension: true, context: 'override', contextFilter: 'myContext')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -211,10 +221,16 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
+        // Make sure the ids start the way we expect and, since we are not trying to keep the
+        // suffix, that the ".sql" is filtered out.
         assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[0].id.contains(".sql")
         assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[1].id.contains(".sql")
         assertTrue changeSets[2].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[2].id.contains(".sql")
         assertTrue changeSets[3].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
+        assertTrue changeSets[3].id.contains(".qry") // Remember this one has a different extension.
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         // Make sure each included change is for the expected file
@@ -236,13 +252,16 @@ databaseChangeLog {
      * Try including all SQL in a directory relative to a changelog that uses a relative path.
      * This test is looking at the relativeToChangeLogFile parameter.  This test also sets a context
      * without a contextFilter to make sure we handle the old parameter
+     * <p>
+     * This test also proves that we exclude extensions from the id when the idKeepsExtension
+     * parameter is explicitly set to false.
      */
     @Test
     void includeAllSqlRelativeToRelativeChangeLog() {
         createIncludedSqlFiles()
         def rootChangeLogFile = createFileFrom(TMP_CHANGELOG_DIR, '.groovy', """
 databaseChangeLog {
-  includeAllSql(path: 'sql', relativeToChangelogFile: true, context: 'myContext')
+  includeAllSql(path: 'sql', relativeToChangelogFile: true, idKeepsExtension: false, context: 'myContext')
   changeSet(author: 'ssaliman', id: '${ROOT_CHANGE_SET}') {
     addColumn(tableName: 'monkey') {
       column(name: 'emotion', type: 'varchar(50)')
@@ -257,10 +276,16 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
+        // Make sure the ids start the way we expect and, since we are not trying to keep the
+        // suffix, that the ".sql" is filtered out.
         assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[0].id.contains(".sql")
         assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[1].id.contains(".sql")
         assertTrue changeSets[2].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[2].id.contains(".sql")
         assertTrue changeSets[3].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[3].id.contains(".qry") // Remember this one has a different extension.
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         // Make sure each included change is for the expected file
@@ -304,10 +329,16 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
+        // Make sure the ids start the way we expect and, since we are not trying to keep the
+        // suffix, that the ".sql" is filtered out.
         assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[0].id.contains(".sql")
         assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[1].id.contains(".sql")
         assertTrue changeSets[2].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[2].id.contains(".sql")
         assertTrue changeSets[3].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[3].id.contains(".qry") // Remember this one has a different extension.
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         // Make sure each included change is for the expected file
@@ -439,6 +470,9 @@ databaseChangeLog {
      * <p>
      * This test will also make sure we can handle contexts properly.
      * <p>
+     * This test also validates the default behavior of idKeepsExtension, ensuring that we do not
+     * keep the extension in the id.
+     * <p>
      * Note: when other tests throw exceptions, this test may also fail because of unclean
      * directories.  Fix the other tests first.
      */
@@ -464,11 +498,16 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
-        // Remember, these should come in BACKWARDS because of the comparator.
+        // Remember, these should come in BACKWARDS because of the comparator, and should not have
+        // ".sql" in the name.
         assertTrue changeSets[0].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[0].id.contains(".sql")
         assertTrue changeSets[1].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[1].id.contains(".sql")
         assertTrue changeSets[2].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[2].id.contains(".sql")
         assertTrue changeSets[3].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[3].id.contains(".qry") // Remember this one has a different extension.
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         // Make sure each included change is for the expected file
@@ -635,10 +674,16 @@ databaseChangeLog {
         def changeSets = rootChangeLog.changeSets
         assertNotNull changeSets
         assertEquals 5, changeSets.size()
+        // Make sure the ids start the way we expect and, since we are not trying to keep the
+        // suffix, that the ".sql" is filtered out.
         assertTrue changeSets[0].id.startsWith(FIRST_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[0].id.contains(".sql")
         assertTrue changeSets[1].id.startsWith(SECOND_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[1].id.contains(".sql")
         assertTrue changeSets[2].id.startsWith(THIRD_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[2].id.contains(".sql")
         assertTrue changeSets[3].id.startsWith(FOURTH_INCLUDED_CHANGE_PREFIX)
+        assertFalse changeSets[3].id.contains(".qry") // Remember this one has a different extension.
         assertEquals ROOT_CHANGE_SET, changeSets[4].id
 
         // Make sure each included change is for the expected file

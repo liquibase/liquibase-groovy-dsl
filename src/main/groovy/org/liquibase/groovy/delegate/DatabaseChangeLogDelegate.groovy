@@ -279,6 +279,13 @@ class DatabaseChangeLogDelegate {
     /**
      * Process the Groovy DSL's special includeAllSql element that creates a changeSet with a
      * sqlFile change for each file found in the specified path.
+     * <p>
+     * There was a lot of discussion about whether this change should automatically set a filter for
+     * just ".sql" files, and the conclusion we came to is that we should not because<br>
+     * 1. Not everyone wants to use a ".sql" extension.  Triggers, functions, etc, might use a plsql
+     * extension or something else.<br>
+     * 2. This is meant to work the same as includeAll, but for SQL files, and includeAll doesn't
+     * set any filters.
      * @param params the params that affect how files are found, and how the changeSets are created
      *         from each one.
      */
@@ -376,7 +383,7 @@ class DatabaseChangeLogDelegate {
             // extension stripped off, unless the user wanted to keep extensions.
             def baseName = fileName.path.tokenize('/').last().tokenize('\\').last()
             if ( !idKeepsExtension && baseName.contains('.') ) {
-                baseName.take(baseName.lastIndexOf('.'))
+                baseName = baseName.take(baseName.lastIndexOf('.'))
             }
             // Make the id from the base fileName and the given prefix and suffix.
             changeSetParams.id = "${params.idPrefix ?: ''}${baseName}${params.idSuffix ?: ''}"
