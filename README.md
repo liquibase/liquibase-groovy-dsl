@@ -7,7 +7,7 @@ a Groovy DSL, rather than hurtful XML. If this DSL isn't reason enough to adopt 
 there is no hope for you.  This project was started once upon a time by Tim Berglund, and is
 currently maintained by Steve Saliman.
 
-## Version 4.0.1 has been released! See the [News](#news) section for more details.
+## Version 4.0.2 has been released! See the [News](#news) section for more details.
 
 **Important note for Groovy 4 and build tools:**
 This DSL is built with a transitive dependency on Groovy 3.0.15.  This ensures that Gradle and Maven
@@ -25,6 +25,10 @@ liquibaseRuntime "org.apache.groovy:groovy-sql:4.0.5"
 ```
 
 ## News
+### October 28, 2026
+Release 4.0.2 is a minor release that fixes a bug with the `idKeepsExtension` attribute of an
+`includeAllSql` change.
+
 ### March 1, 2025
 Release 4.0.1 adds support for Liquibase 4.31, including new attributes added to Liquibase since
 version 4.26.

@@ -1,3 +1,8 @@
+Changes for 4.0.2
+=================
+
+- Fixed a bug with the `idKeepsExtension` argument to `includeAllSql`.  It is no longer ignored.
+
 Changes for 4.0.1
 =================
 
