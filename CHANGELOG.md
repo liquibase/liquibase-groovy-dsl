@@ -1,3 +1,13 @@
+Changes for 4.1.0
+=================
+
+- Potential breaking change: The default value for the `errorIfMissing` argument of `include` was
+  `false` in the groovy DSL, which didn't match Liquibase's own default.  The groovy DSL now uses
+  Liquibase's default of true.
+
+- Version 4.0.x had an incorrect default for the `failOnError` attribute of `includeAllSql`.  The
+  default is now `true`.
+
 Changes for 4.0.2
 =================
 
